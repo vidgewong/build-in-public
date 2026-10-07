@@ -1,0 +1,89 @@
+{
+  "profile": {
+    "name": "Vidge",
+    "handle": "@vidge",
+    "birthday": "1994-11-18",
+    "startDate": "2026-10-07",
+    "tagline": "我愿意用钱来规范自己的行为，直到这些习惯成为我的一部分。",
+    "contact": "微信好友都可以参与"
+  },
+  "metrics": [
+    {
+      "key": "height",
+      "label": "身高",
+      "unit": "cm",
+      "value": 178,
+      "visibility": "public"
+    },
+    {
+      "key": "age",
+      "label": "年龄",
+      "unit": "岁",
+      "value": null,
+      "derive": "age",
+      "visibility": "public"
+    },
+    {
+      "key": "weight",
+      "label": "体重",
+      "unit": "kg",
+      "value": 68.4,
+      "visibility": "public",
+      "target": 65
+    },
+    {
+      "key": "bodyfat",
+      "label": "体脂",
+      "unit": "%",
+      "value": 18.2,
+      "visibility": "public",
+      "target": 14
+    },
+    {
+      "key": "iq",
+      "label": "智商",
+      "unit": "",
+      "value": 120,
+      "visibility": "public"
+    },
+    {
+      "key": "eq",
+      "label": "情商",
+      "unit": "",
+      "value": 95,
+      "visibility": "public"
+    },
+    {
+      "key": "networth",
+      "label": "净资产",
+      "unit": "",
+      "value": null,
+      "visibility": "masked",
+      "maskedHint": "暂不可见"
+    },
+    {
+      "key": "resting_hr",
+      "label": "静息心率",
+      "unit": "bpm",
+      "value": 58,
+      "visibility": "public"
+    },
+    {
+      "key": "sleep",
+      "label": "平均睡眠",
+      "unit": "h",
+      "value": 6.8,
+      "visibility": "public",
+      "target": 7.5
+    },
+    {
+      "key": "waist",
+      "label": "腰围",
+      "unit": "cm",
+      "value": 80,
+      "visibility": "public"
+    }
+  ],
+  "claimWindowDays": 30,
+  "currency": "¥"
+}

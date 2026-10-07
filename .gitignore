@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# admin 口令哈希和会话密钥。线上由 install-services.sh 生成在 /etc/bip-api.env，
+# 本地开发时可能会放一份在这里——无论如何都不该进仓库。
+.env
+.env.*
+*.env
+
+# CLI 的登录 token（bip login 写的）
+.bip-token
+
+# mongodump 产物
+*.archive
+
+.DS_Store

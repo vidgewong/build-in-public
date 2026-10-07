@@ -1,0 +1,36 @@
+{
+  "name": "build-in-public",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "bip": "./bin/bip.mjs"
+  },
+  "scripts": {
+    "dev": "vite",
+    "api": "node ./server/api.mjs",
+    "db:up": "brew services start mongodb/brew/mongodb-community@7.0",
+    "db:down": "brew services stop mongodb/brew/mongodb-community@7.0",
+    "db:seed": "node ./server/seed.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "bip": "node ./bin/bip.mjs",
+    "deploy": "bash ./deploy/deploy.sh",
+    "deploy:web": "bash ./deploy/deploy.sh --web",
+    "deploy:pull": "bash ./deploy/deploy.sh --pull"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "mongodb": "^7.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.18.4"
+  }
+}

@@ -1,0 +1,38 @@
+[Unit]
+Description=build-in-public API
+Documentation=https://open.vidge.me
+After=network-online.target mongod.service
+Wants=network-online.target
+Requires=mongod.service
+
+[Service]
+Type=simple
+User=vidge
+WorkingDirectory=/home/vidge/apps/build-in-public
+Environment=NODE_ENV=production
+Environment=API_HOST=127.0.0.1
+Environment=API_PORT=8787
+Environment=MONGODB_URI=mongodb://127.0.0.1:27017
+Environment=MONGODB_DB=buildinpublic
+# 口令哈希和会话密钥。不进 git，由 install-services.sh 生成，权限 600。
+# 这个文件不存在时 admin 整个关掉（API 仍然只读可用），所以标 -
+EnvironmentFile=-/etc/bip-api.env
+ExecStart=/usr/bin/node server/api.mjs
+Restart=always
+RestartSec=5
+
+# 1.6G 的机器，给 API 设个上限，别拖垮 mongo 和 nginx
+MemoryMax=256M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bip-api
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/vidge/apps/build-in-public
+
+[Install]
+WantedBy=multi-user.target

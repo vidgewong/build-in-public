@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#07080a" />
+    <title>VIDGE 的人生公测 · 行为准则篇</title>
+    <meta
+      name="description"
+      content="我愿意用钱来规范自己的行为。一旦我违约，你发现了，立刻就能拿到钱。这里是我全部的守约记录——缺失的格子，就是你可以找我要的钱。"
+    />
+    <meta property="og:title" content="VIDGE 的人生公测 · 行为准则篇" />
+    <meta
+      property="og:description"
+      content="缺失的格子，就是你可以找我要的钱。"
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2307080A'/%3E%3Crect x='6' y='6' width='8' height='8' fill='%232E6B4F'/%3E%3Crect x='18' y='6' width='8' height='8' fill='%232E6B4F'/%3E%3Crect x='6' y='18' width='8' height='8' fill='%232E6B4F'/%3E%3Crect x='18' y='18' width='8' height='8' fill='%23FF3B30'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <!-- 必须在样式和 React 之前同步执行，否则深浅主题会闪一下 -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('bip-theme');
+          var t =
+            v === 'light' || v === 'dark'
+              ? v
+              : matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark';
+          document.documentElement.dataset.theme = t;
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', t === 'light' ? '#faf8f5' : '#07080a');
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
