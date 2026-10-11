@@ -277,6 +277,12 @@ button {
   /* 高度跟着视口走，而不是被这一列的宽度卡住 */
   height: clamp(300px, 52vh, 520px);
   min-width: 0;
+  /* 同 .subject-stage：人像边缘只在浅色底上才干净 */
+  background:
+    radial-gradient(120% 90% at 50% 10%, rgb(255 255 255 / 0.9), transparent 62%),
+    linear-gradient(180deg, #eef0f2, #dfe3e7);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .subject-card-fig > .pfig {
@@ -1109,9 +1115,13 @@ button {
 .subject-stage {
   position: relative;
   min-height: clamp(420px, 56vh, 620px);
+  /* 舞台固定浅色，不跟随主题。
+     人像素材是白底抠出来的，边缘那圈半透明像素带着白色残留——
+     只有放在浅色底上才看不出来。深色主题下换成任何深色都会显出白边，
+     而把白边修掉会伤到发丝和眼白，所以改为锁定背景色。 */
   background:
-    radial-gradient(120% 90% at 50% 8%, var(--hero-glow), transparent 60%),
-    linear-gradient(180deg, var(--ink-800), var(--ink-900));
+    radial-gradient(120% 90% at 50% 8%, rgb(255 255 255 / 0.9), transparent 62%),
+    linear-gradient(180deg, #eef0f2, #dfe3e7);
   border: 1px solid var(--line);
   border-radius: 3px;
   overflow: hidden;
@@ -1120,16 +1130,25 @@ button {
   justify-content: center;
 }
 
+/* 舞台固定浅色，所以里面的 HUD 也得用固定色标，
+   否则深色主题下这些线和字会和白底糊在一起。 */
+.subject-stage,
+.subject-card-fig {
+  --stage-line: rgb(15 23 32 / 0.10);
+  --stage-line-hi: rgb(15 23 32 / 0.22);
+  --stage-text: rgb(15 23 32 / 0.45);
+}
+
 /* 底纹网格 */
 .subject-stage::before {
   content: "";
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    linear-gradient(var(--stage-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--stage-line) 1px, transparent 1px);
   background-size: 48px 48px;
-  opacity: var(--grid-opacity);
+  opacity: 0.9;
   mask-image: radial-gradient(70% 60% at 50% 50%, #000 30%, transparent 100%);
 }
 
@@ -1142,7 +1161,7 @@ button {
   position: absolute;
   width: 18px;
   height: 18px;
-  border: 1px solid var(--line-hi);
+  border: 1px solid var(--stage-line-hi);
   pointer-events: none;
 }
 
@@ -1159,7 +1178,7 @@ button {
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-lo);
+  color: var(--stage-text);
 }
 
 .subject-hint {
@@ -1171,8 +1190,8 @@ button {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-lo);
-  opacity: 0.7;
+  color: var(--stage-text);
+  opacity: 0.8;
   white-space: nowrap;
 }
 
@@ -1194,7 +1213,7 @@ button {
 /* WebGL 不可用时退化成静态图 */
 .pfig-fallback {
   object-position: center top;
-  filter: drop-shadow(0 18px 40px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 18px 40px rgb(0 0 0 / 0.18));
 }
 
 /* 指标栏 */
