@@ -471,6 +471,29 @@ button {
   color: var(--text-lo);
 }
 
+/* 一键复制全部索赔。只在「当前敞口」这一格出现，
+   margin-top:auto 把它压到格子底部——否则这一格比旁边三格高出一截，
+   四格的数字就不在一条线上了。 */
+.ledger-claim-all {
+  margin-top: auto;
+  padding-top: 10px;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--open);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+
+.ledger-claim-all:hover {
+  border-bottom-color: currentColor;
+}
+
+.ledger-claim-all:active {
+  opacity: 0.6;
+}
+
 /* ============================================================
    格子矩阵
    ============================================================ */

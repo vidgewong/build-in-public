@@ -5,7 +5,7 @@ import { useCountUp, useInView } from '../lib/hooks';
 import { useSite } from '../lib/site-context';
 
 export default function Home() {
-  const { state, currency: cur } = useSite();
+  const { state, currency: cur, copyAllClaims } = useSite();
   const { totals, overview, today, claims, claimWindowDays, profile, metrics } = state;
 
   // hero 里只放 4 项，太多会跟左边的大标题抢
@@ -45,7 +45,12 @@ export default function Home() {
           />
         </div>
 
-        <Ledger totals={totals} cur={cur} startDate={profile.startDate} />
+        <Ledger
+          totals={totals}
+          cur={cur}
+          startDate={profile.startDate}
+          onCopyAll={copyAllClaims}
+        />
       </header>
 
       <section className="section is-tight">
@@ -82,10 +87,12 @@ function Ledger({
   totals,
   cur,
   startDate,
+  onCopyAll,
 }: {
   totals: ReturnType<typeof useSite>['state']['totals'];
   cur: string;
   startDate: string;
+  onCopyAll: () => void;
 }) {
   const [ref, inView] = useInView<HTMLDivElement>(0.1);
   const open = useCountUp(totals.openAmount, inView, 1100);
@@ -103,6 +110,17 @@ function Ledger({
             {Math.round(open)}
           </span>
           <span className="ledger-hint">{totals.openCount} 个缺口等人来领</span>
+          {/* 没有缺口时不渲染：一个按下去说「现在没有缺口」的按钮是在浪费点击 */}
+          {totals.openCount > 0 && (
+            <button
+              type="button"
+              className="ledger-claim-all"
+              onClick={onCopyAll}
+              title={`把这 ${totals.openCount} 个缺口一次性复制成索赔话术`}
+            >
+              一键复制全部索赔 →
+            </button>
+          )}
         </div>
         <div className="ledger-cell">
           <span className="ledger-label">已赔付</span>

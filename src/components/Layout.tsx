@@ -28,17 +28,72 @@ export default function Layout() {
   const ctx = useMemo(() => {
     if (!state) return null;
     const cur = state.currency;
+
+    const write = (text: string, ok: string) => {
+      navigator.clipboard
+        ?.writeText(text)
+        .then(() => showToast(ok))
+        // 复制失败（没授权／非 HTTPS）就把话术本身弹出来，至少能手动选
+        .catch(() => showToast(text));
+    };
+
     const copyClaim = (rule: Rule, slot: Slot) => {
       const text =
         `我发现你 ${formatPeriod(rule.cadence, slot.period)} 没有「${rule.title}」的记录，` +
         `按约定你该给我 ${cur}${rule.amount}。` +
         `（${location.origin}/records）`;
-      navigator.clipboard
-        ?.writeText(text)
-        .then(() => showToast('索赔话术已复制，直接发给我即可'))
-        .catch(() => showToast(text));
+      write(text, '索赔话术已复制，直接发给我即可');
     };
-    return { state, currency: cur, copyClaim };
+
+    /**
+     * 把当前所有缺口打包成一份话术。
+     *
+     * 逐个点格子复制太碎了：十几个缺口要来回十几趟。这里一次拿全，
+     * 朋友在微信里粘一次就是完整的一笔账。
+     *
+     * 按规则分组而不是一个缺口一行——同一条规则漏十天就是十行几乎一样的字，
+     * 在微信里没法读。每条规则一行，日期列在后面，行数跟着规则数走，
+     * 不跟着缺口数走，缺口再多也不会糊成一屏。
+     */
+    const copyAllClaims = () => {
+      const groups: { title: string; amount: number; periods: string[] }[] = [];
+      let total = 0;
+      let gaps = 0;
+
+      for (const s of state.summaries) {
+        const periods = s.slots
+          .filter((slot) => slot.status === 'open')
+          .map((slot) => formatPeriod(s.rule.cadence, slot.period));
+        if (!periods.length) continue;
+        groups.push({ title: s.rule.title, amount: s.rule.amount, periods });
+        total += s.rule.amount * periods.length;
+        gaps += periods.length;
+      }
+
+      if (!gaps) {
+        showToast('现在没有缺口可领');
+        return;
+      }
+
+      const lines = groups.map((g, i) => {
+        const sum = g.amount * g.periods.length;
+        const head =
+          g.periods.length > 1
+            ? `${i + 1}.「${g.title}」漏了 ${g.periods.length} 次 · ${cur}${g.amount} × ${g.periods.length} = ${cur}${sum}`
+            : `${i + 1}.「${g.title}」${cur}${sum}`;
+        return `${head}\n   ${g.periods.join('、')}`;
+      });
+
+      const text = [
+        `我查了一下，你有 ${gaps} 个缺口没记录：`,
+        ...lines,
+        `合计 ${cur}${total}。`,
+        `（${location.origin}/records）`,
+      ].join('\n');
+      write(text, `${gaps} 个缺口 · ${cur}${total} 已复制，直接发给我`);
+    };
+
+    return { state, currency: cur, copyClaim, copyAllClaims };
   }, [state, showToast]);
 
   // 当前敞口放在导航栏右侧常驻，每一页都能看到还欠多少
