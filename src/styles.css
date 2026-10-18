@@ -58,7 +58,9 @@
   --text: #4a4740;
   --text-lo: #857e72;
 
-  --kept: #d6d1c8;
+  /* 守约格子整格铺浅绿。以前是 #d6d1c8 的米灰，和 expired / exempt 的灰几乎分不开，
+     结果整格看着是灰的，只有有证明的格子右下角那个缺角是绿的 */
+  --kept: #a3d1b5;
   --kept-hi: #2f7d55;
   --open: #d92b20;
   --claimed: #e6d4ae;
