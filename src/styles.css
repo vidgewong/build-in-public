@@ -479,6 +479,32 @@ button {
   color: var(--text-lo);
 }
 
+/* 已赔付格子整格是链接，点哪都去账单页 */
+.ledger-cell.is-link {
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.2s var(--ease);
+}
+
+.ledger-cell.is-link:hover {
+  background: var(--ink-800);
+}
+
+.ledger-hint-arrow {
+  display: inline-block;
+  margin-left: 6px;
+  opacity: 0;
+  transform: translateX(-4px);
+  color: var(--gold);
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.ledger-cell.is-link:hover .ledger-hint-arrow,
+.ledger-cell.is-link:focus-visible .ledger-hint-arrow {
+  opacity: 1;
+  transform: none;
+}
+
 /* 一键复制全部索赔。只在「当前敞口」这一格出现，
    margin-top:auto 把它压到格子底部——否则这一格比旁边三格高出一截，
    四格的数字就不在一条线上了。 */

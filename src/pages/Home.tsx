@@ -122,14 +122,17 @@ function Ledger({
             </button>
           )}
         </div>
-        <div className="ledger-cell">
+        <Link className="ledger-cell is-link" to="/bills" title="去账单页看每一笔赔付">
           <span className="ledger-label">已赔付</span>
           <span className="ledger-value is-gold mono">
             {cur}
             {Math.round(paid)}
           </span>
-          <span className="ledger-hint">{totals.paidCount} 笔已经发出去</span>
-        </div>
+          <span className="ledger-hint">
+            {totals.paidCount} 笔已经发出去
+            <span className="ledger-hint-arrow" aria-hidden="true">→</span>
+          </span>
+        </Link>
         <div className="ledger-cell">
           <span className="ledger-label">守约率</span>
           <span className="ledger-value mono">{rate.toFixed(1)}%</span>
