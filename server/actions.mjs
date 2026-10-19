@@ -10,6 +10,8 @@
  */
 
 import * as repo from './repo.mjs';
+import * as auth from './auth.mjs';
+import * as storage from './storage.mjs';
 import { addDays, periodKeyFor, todayKey } from '../shared/domain.mjs';
 
 /** 校验失败。调用方据此回 400 而不是 500。 */
@@ -170,13 +172,35 @@ export async function deleteEntry(id) {
 
 /* ---------- 违约赔付 ---------- */
 
+/** 收下一张图，返回 key。格式靠文件头判断。 */
+export async function uploadImage(buf) {
+  if (!Buffer.isBuffer(buf) || !buf.length) bad('没有收到图片');
+  const key = await storage.saveImage(buf);
+  if (!key) bad('只支持 JPG / PNG / WebP / GIF 图片');
+  return { key };
+}
+
+/** 把请求里的 proof 规整成 [{key,type}]，并确认每张图确实已经上传过 */
+async function normalizeProof(input) {
+  const raw = Array.isArray(input) ? input : input ? [input] : [];
+  const keys = [...new Set(raw.map((p) => (typeof p === 'string' ? p : p?.key)).filter(Boolean))];
+  for (const k of keys) {
+    if (!(await storage.hasImage(k))) bad(`图片不存在或格式不对：${k}。请先上传。`);
+  }
+  return keys.map((key) => ({ key, type: 'image' }));
+}
+
 /**
  * 记一笔违约赔付（钱已经给出去了，这里只是记账）。
+ * 必须附至少一张图片证明（通常是转账截图）——没有凭证的赔付，访客没法核对。
  * 事件类规则可以同一天记多笔，周期类一个周期只能被领一次。
  */
-export async function recordViolation({ rule: ruleRef, date: dateInput, claimant, amount, note }) {
+export async function recordViolation({ rule: ruleRef, date: dateInput, claimant, amount, note, proof }) {
   const rule = await mustFindRule(ruleRef);
   const date = resolveDate(dateInput);
+
+  const proofs = await normalizeProof(proof);
+  if (!proofs.length) bad('赔付必须附图片证明（比如转账截图）');
 
   // 事件类没有自然周期，用「日期#随机」保证多次违约互不覆盖
   const period = rule.cadence === 'event'
@@ -197,16 +221,43 @@ export async function recordViolation({ rule: ruleRef, date: dateInput, claimant
     claimant: (typeof claimant === 'string' && claimant.trim()) || '匿名朋友',
     amount: paid,
     paidAt: new Date().toISOString(),
+    proof: proofs,
     ...(typeof note === 'string' && note ? { note } : {}),
   };
   await repo.addClaim(claim);
   return { rule, claim };
 }
 
+/** 给已有赔付补图片。老的赔付没有证明，也走这里补。 */
+export async function addClaimProof({ id, proof }) {
+  if (!id) bad('需要赔付 id');
+  const claim = await repo.findClaim(id);
+  if (!claim) bad(`找不到赔付记录：${id}`);
+  const have = new Set((claim.proof ?? []).map((p) => p.key));
+  const fresh = (await normalizeProof(proof)).filter((p) => !have.has(p.key));
+  if (!fresh.length) bad('没有新的图片可添加');
+  return { claim: await repo.addClaimProof(id, fresh) };
+}
+
+/** 删一张证明。至少留一张——赔付必须有凭证。 */
+export async function removeClaimProof({ id, key }) {
+  if (!id || !key) bad('需要赔付 id 和图片 key');
+  const claim = await repo.findClaim(id);
+  if (!claim) bad(`找不到赔付记录：${id}`);
+  const proofs = claim.proof ?? [];
+  if (!proofs.some((p) => p.key === key)) bad('这笔赔付没有这张图');
+  if (proofs.length <= 1) bad('至少留一张证明。要换图的话，先补一张新的再删旧的。');
+  const saved = await repo.removeClaimProof(id, key);
+  await storage.removeImage(key);
+  return { claim: saved };
+}
+
 export async function deleteClaim(id) {
   if (!id) bad('需要赔付 id');
+  const claim = await repo.findClaim(id);
   const removed = await repo.deleteClaim(id);
   if (!removed) bad(`找不到赔付记录：${id}`);
+  for (const p of claim?.proof ?? []) await storage.removeImage(p.key);
   return { id };
 }
 
@@ -295,7 +346,12 @@ export async function toggleRule(ruleRef, active) {
  */
 export async function deleteRule(ruleRef) {
   const rule = await mustFindRule(ruleRef);
+  // 级联删赔付前先记下它们的图片，不然文件会变成没人引用的孤儿
+  const files = (await repo.getClaims())
+    .filter((c) => c.ruleId === rule.id)
+    .flatMap((c) => (c.proof ?? []).map((p) => p.key));
   const { entries, claims } = await repo.deleteRuleCascade(rule.id);
+  for (const k of files) await storage.removeImage(k);
   return { rule, removedEntries: entries, removedClaims: claims };
 }
 
@@ -381,4 +437,30 @@ export async function saveProfile(input) {
   if (patch.birthday) patch.birthday = resolveDate(patch.birthday);
   if (patch.startDate) patch.startDate = resolveDate(patch.startDate);
   return repo.saveProfile(patch);
+}
+
+/* ---------- 登录密码 ---------- */
+
+/**
+ * 设置（或修改）登录密码。需要出示当前有效的凭证（初始码或现有登录密码）——
+ * 一个被劫持的会话不该能直接换掉密码。
+ * 设置成功后所有旧会话失效，调用方要给当前这位签发新会话。
+ */
+export async function setLoginPassword({ current, password }) {
+  if (!auth.verifyPassword(current)) bad('当前口令不对');
+  const problem = auth.passwordProblem(password);
+  if (problem) bad(`登录密码不合格：${problem}`);
+  const cred = auth.makeCredential(password);
+  await repo.setAuthDoc(cred);
+  auth.loadCredential(cred);
+  return { ok: true };
+}
+
+/** 移除登录密码，只剩初始码。同样使所有旧会话失效。 */
+export async function clearLoginPassword({ current }) {
+  if (!auth.verifyPassword(current)) bad('当前口令不对');
+  const cred = { hash: '', version: Date.now() };
+  await repo.setAuthDoc(cred);
+  auth.loadCredential(cred);
+  return { ok: true };
 }

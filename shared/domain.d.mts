@@ -42,6 +42,8 @@ export interface Claim {
   amount: number;
   paidAt: string;
   note?: string;
+  /** 图片证明（转账截图）。key 对应 GET /api/media/:key。老数据可能没有。 */
+  proof?: { key: string; type: 'image' }[];
 }
 
 export interface Calendar {

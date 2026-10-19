@@ -34,7 +34,28 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const adminApi = {
   login: (password: string) => call<{ ok: true }>('POST', '/login', { password }),
   logout: () => call<{ ok: true }>('POST', '/logout'),
-  session: () => call<{ ok: true }>('GET', '/session'),
+  session: () => call<{ ok: true; customPassword: boolean }>('GET', '/session'),
+  setPassword: (current: string, password: string) =>
+    call<{ ok: true; customPassword: boolean }>('POST', '/password', { current, password }),
+  clearPassword: (current: string) =>
+    call<{ ok: true; customPassword: boolean }>('POST', '/password/clear', { current }),
+
+  /** 上传一张图，返回 key。body 是原始字节，不走 JSON。 */
+  upload: async (file: Blob): Promise<{ key: string }> => {
+    const res = await fetch(`${BASE}/api/admin/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: file,
+    });
+    let data: { key?: string; error?: string } | null = null;
+    try { data = await res.json(); } catch { /* 空体 */ }
+    if (res.status === 401) throw new AuthError('需要登录');
+    if (!res.ok || !data?.key) throw new Error(data?.error ?? `上传失败（${res.status}）`);
+    return { key: data.key };
+  },
+  addClaimProof: (id: string, proof: string[]) => call<unknown>('POST', '/claim/proof', { id, proof }),
+  removeClaimProof: (id: string, key: string) => call<unknown>('POST', '/claim/proof/remove', { id, key }),
   snapshot: () => call<AdminSnapshot>('GET', '/snapshot'),
 
   saveEntry: (body: EntryInput) => call<unknown>('POST', '/entry', body),
@@ -86,6 +107,8 @@ export interface ClaimInput {
   claimant?: string;
   amount?: number;
   note?: string;
+  /** 已上传图片的 key，至少一个 */
+  proof: string[];
 }
 
 export interface RuleInput {

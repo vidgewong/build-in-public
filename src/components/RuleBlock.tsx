@@ -8,6 +8,7 @@ import {
   type SlotStatus,
 } from '../lib/domain';
 import { useInView, useElementWidth, useMediaQuery } from '../lib/hooks';
+import ProofGallery from './ProofGallery';
 
 const STATUS_TEXT: Record<SlotStatus, string> = {
   kept: '守约',
@@ -459,15 +460,17 @@ function SlotPanel({
 }) {
   const media = slot.entry?.media ?? [];
   const end = periodEnd(rule.cadence, slot.period);
+  const [proofOpen, setProofOpen] = useState(false);
 
   // Esc 关闭。面板是 fixed 全屏遮罩，键盘用户也得有退路。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // 证明图片开着时，Esc 只关图片，不连格子详情一起关
+      if (e.key === 'Escape' && !proofOpen) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, proofOpen]);
 
   return (
     <div className="slot-panel-backdrop" onClick={onClose} role="presentation">
@@ -495,11 +498,31 @@ function SlotPanel({
         </div>
 
         {slot.status === 'claimed' && slot.claim && (
-          <p className="slot-panel-note">
-            已被 {slot.claim.claimant} 领走 {currency}
-            {slot.claim.amount}
-            {slot.claim.note && ` · ${slot.claim.note}`}
-          </p>
+          <>
+            <p className="slot-panel-note">
+              已被 {slot.claim.claimant} 领走 {currency}
+              {slot.claim.amount}
+              {slot.claim.note && ` · ${slot.claim.note}`}
+            </p>
+            {slot.claim.proof?.length ? (
+              <>
+                <button
+                  type="button"
+                  className="proof-btn slot-panel-proofbtn"
+                  onClick={() => setProofOpen(true)}
+                >
+                  查看赔付证明{slot.claim.proof.length > 1 ? ` ×${slot.claim.proof.length}` : ''}
+                </button>
+                {proofOpen && (
+                  <ProofGallery
+                    title={`${slot.claim.claimant} · ${currency}${slot.claim.amount}`}
+                    keys={slot.claim.proof.map((p) => p.key)}
+                    onClose={() => setProofOpen(false)}
+                  />
+                )}
+              </>
+            ) : null}
+          </>
         )}
 
         {slot.entry?.note && <p className="slot-panel-note">{slot.entry.note}</p>}

@@ -73,6 +73,26 @@ async function request(method, path, body, { token = readToken(), auth = true } 
   return data;
 }
 
+/** 上传一张本地图片，返回 key。body 是原始字节。 */
+export async function uploadFile(bytes, { token = readToken() } = {}) {
+  if (!token) throw new ApiError('还没登录。先跑：bip login', 401);
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/admin/upload`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+      body: bytes,
+    });
+  } catch (err) {
+    throw new ApiError(`连不上 ${BASE}（${err.message}）`, 0);
+  }
+  let data = null;
+  try { data = await res.json(); } catch { /* 空体 */ }
+  if (res.status === 401) throw new ApiError('口令无效或已过期。重新跑：bip login', 401);
+  if (!res.ok) throw new ApiError(data?.error ?? `上传失败（${res.status}）`, res.status);
+  return data.key;
+}
+
 export const get = (p, opts) => request('GET', p, undefined, opts);
 export const post = (p, body, opts) => request('POST', p, body, opts);
 export const del = (p, opts) => request('DELETE', p, undefined, opts);

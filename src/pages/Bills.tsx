@@ -1,8 +1,11 @@
+import { useState } from 'react';
+import ProofGallery from '../components/ProofGallery';
 import { useSite } from '../lib/site-context';
 
 export default function Bills() {
   const { state, currency: cur } = useSite();
   const { totals, claims } = state;
+  const [viewing, setViewing] = useState<{ title: string; keys: string[] } | null>(null);
 
   const sorted = [...claims].sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
@@ -78,6 +81,7 @@ export default function Bills() {
                   <th>领取人</th>
                   <th>事由</th>
                   <th style={{ textAlign: 'right' }}>金额</th>
+                  <th style={{ textAlign: 'right' }}>证明</th>
                 </tr>
               </thead>
               <tbody>
@@ -90,6 +94,24 @@ export default function Bills() {
                       {cur}
                       {c.amount}
                     </td>
+                    <td className="proof-cell">
+                      {c.proof?.length ? (
+                        <button
+                          type="button"
+                          className="proof-btn"
+                          onClick={() =>
+                            setViewing({
+                              title: `${c.claimant} · ${cur}${c.amount}`,
+                              keys: c.proof!.map((p) => p.key),
+                            })
+                          }
+                        >
+                          看图 {c.proof.length > 1 ? `×${c.proof.length}` : ''}
+                        </button>
+                      ) : (
+                        <span className="proof-none">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -97,6 +119,9 @@ export default function Bills() {
           </>
         )}
       </div>
+      {viewing && (
+        <ProofGallery title={viewing.title} keys={viewing.keys} onClose={() => setViewing(null)} />
+      )}
     </section>
   );
 }

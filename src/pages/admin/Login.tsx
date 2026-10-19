@@ -32,7 +32,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="口令"
+        placeholder="初始码 或 登录密码"
         autoFocus
         autoComplete="current-password"
         // 手机上别自作主张首字母大写

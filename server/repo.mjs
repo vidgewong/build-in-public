@@ -187,6 +187,44 @@ export async function deleteEntry(id) {
   return res.deletedCount > 0;
 }
 
+export async function findClaim(id) {
+  const c = await cols();
+  const doc = await c.claims.findOne({ id });
+  return doc ? strip(doc) : null;
+}
+
+export async function addClaimProof(id, items) {
+  const c = await cols();
+  const doc = await c.claims.findOneAndUpdate(
+    { id },
+    { $push: { proof: { $each: items } } },
+    { returnDocument: 'after' }
+  );
+  return doc ? strip(doc) : null;
+}
+
+export async function removeClaimProof(id, key) {
+  const c = await cols();
+  const doc = await c.claims.findOneAndUpdate(
+    { id },
+    { $pull: { proof: { key } } },
+    { returnDocument: 'after' }
+  );
+  return doc ? strip(doc) : null;
+}
+
+/** 登录密码（与环境变量里的初始码并存）。哈希 + 会话版本 */
+export async function getAuthDoc() {
+  const c = await cols();
+  const doc = await c.config.findOne({ _id: 'auth' });
+  return doc ? strip(doc) : null;
+}
+
+export async function setAuthDoc(cred) {
+  const c = await cols();
+  await c.config.updateOne({ _id: 'auth' }, { $set: cred }, { upsert: true });
+}
+
 export async function deleteClaim(id) {
   const c = await cols();
   const res = await c.claims.deleteOne({ id });

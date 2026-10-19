@@ -1,19 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
 import { formatPeriod, todayKey } from '../../lib/domain';
+import ImagePicker from './ImagePicker';
+import Pager, { usePaged } from './Pager';
 
 /**
  * 赔付与豁免。
  * 赔付是「朋友在微信上抓到我违约、我付了钱」之后的记账，所以默认日期是今天，
  * 但可以往回改——抓到和付钱之间经常隔一天。
  */
-export default function LedgerPanel({ snap, run }: PanelProps) {
+export default function LedgerPanel({ snap, run, notify }: PanelProps) {
+  const sortedClaims = useMemo(
+    () => [...snap.claims].sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1)),
+    [snap.claims]
+  );
+  const { rows: claimRows, pager } = usePaged(sortedClaims);
+
   return (
     <>
       <section className="admin-section">
         <h2 className="admin-h2">记一笔赔付</h2>
-        <ClaimForm snap={snap} run={run} />
+        <ClaimForm snap={snap} run={run} notify={notify} />
       </section>
 
       <section className="admin-section">
@@ -25,7 +33,7 @@ export default function LedgerPanel({ snap, run }: PanelProps) {
           <p className="admin-empty">一笔都还没赔出去。</p>
         ) : (
           <ul className="admin-list">
-            {[...snap.claims].sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1)).map((c) => {
+            {claimRows.map((c) => {
               const rule = snap.rules.find((r) => r.id === c.ruleId);
               return (
                 <li className="admin-row" key={c.id}>
@@ -37,6 +45,23 @@ export default function LedgerPanel({ snap, run }: PanelProps) {
                       {c.claimant} · {rule ? formatPeriod(rule.cadence, c.period) : c.period} · 付于 {c.paidAt.slice(0, 10)}
                       {c.note ? ` · ${c.note}` : ''}
                     </span>
+                    {!c.proof?.length && (
+                      <span className="admin-badge-warn mono">缺图片证明，请补上</span>
+                    )}
+                    <ImagePicker
+                      keys={(c.proof ?? []).map((p) => p.key)}
+                      onError={(m) => notify(m, true)}
+                      // 补图：选完即上传，立刻挂到这笔赔付上
+                      onChange={(next) => {
+                        const have = new Set((c.proof ?? []).map((p) => p.key));
+                        const fresh = next.filter((k) => !have.has(k));
+                        if (fresh.length) void run(() => adminApi.addClaimProof(c.id, fresh), '证明已补上');
+                      }}
+                      onRemove={(key) => {
+                        if (!confirm('删除这张证明图？')) return;
+                        void run(() => adminApi.removeClaimProof(c.id, key), '已删除这张图');
+                      }}
+                    />
                   </div>
                   <div className="admin-row-actions">
                     <button
@@ -55,6 +80,7 @@ export default function LedgerPanel({ snap, run }: PanelProps) {
             })}
           </ul>
         )}
+        <Pager {...pager} />
       </section>
 
       <section className="admin-section">
@@ -90,13 +116,14 @@ export default function LedgerPanel({ snap, run }: PanelProps) {
   );
 }
 
-function ClaimForm({ snap, run }: PanelProps) {
+function ClaimForm({ snap, run, notify }: PanelProps) {
   const rules = snap.rules.filter((r) => r.active);
   const [ruleId, setRuleId] = useState(rules[0]?.id ?? '');
   const [date, setDate] = useState(todayKey());
   const [claimant, setClaimant] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [proof, setProof] = useState<string[]>([]);
 
   if (!rules.length) return <p className="admin-empty">还没有启用中的规则。</p>;
 
@@ -143,10 +170,15 @@ function ClaimForm({ snap, run }: PanelProps) {
         <input className="admin-input" value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
 
+      <div className="admin-field">
+        <span className="admin-field-label">图片证明（必填，比如转账截图）</span>
+        <ImagePicker keys={proof} onChange={setProof} onError={(m) => notify(m, true)} />
+      </div>
+
       <button
         type="button"
         className="admin-btn is-primary"
-        disabled={!ruleId}
+        disabled={!ruleId || proof.length === 0}
         onClick={async () => {
           const okay = await run(
             () => adminApi.saveClaim({
@@ -154,13 +186,14 @@ function ClaimForm({ snap, run }: PanelProps) {
               claimant: claimant.trim() || undefined,
               amount: amount === '' ? undefined : Number(amount),
               note: note.trim() || undefined,
+              proof,
             }),
             '已记账'
           );
-          if (okay) { setClaimant(''); setAmount(''); setNote(''); }
+          if (okay) { setClaimant(''); setAmount(''); setNote(''); setProof([]); }
         }}
       >
-        记账
+        {proof.length === 0 ? '先传一张图片证明' : '记账'}
       </button>
     </div>
   );

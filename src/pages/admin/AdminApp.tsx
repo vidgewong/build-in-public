@@ -5,12 +5,14 @@ import LedgerPanel from './LedgerPanel';
 import Login from './Login';
 import MetricsPanel from './MetricsPanel';
 import RulesPanel from './RulesPanel';
+import SecurityPanel from './SecurityPanel';
 
 const TABS = [
   { key: 'entries', label: '打卡' },
   { key: 'rules', label: '约定' },
   { key: 'metrics', label: '指标' },
   { key: 'ledger', label: '赔付 / 豁免' },
+  { key: 'security', label: '安全' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -86,7 +88,7 @@ export default function AdminApp() {
     );
   }
 
-  const panelProps = { snap, run };
+  const panelProps = { snap, run, notify };
 
   return (
     <div className="admin">
@@ -134,6 +136,8 @@ export default function AdminApp() {
           <RulesPanel {...panelProps} snap={snap} />
         ) : tab === 'metrics' ? (
           <MetricsPanel {...panelProps} snap={snap} />
+        ) : tab === 'security' ? (
+          <SecurityPanel notify={notify} onSessionLost={() => setAuthed(false)} />
         ) : (
           <LedgerPanel {...panelProps} snap={snap} />
         )}
@@ -146,5 +150,6 @@ export default function AdminApp() {
 
 export type PanelProps = {
   snap: AdminSnapshot;
+  notify: (text: string, bad?: boolean) => void;
   run: (fn: () => Promise<unknown>, okText: string) => Promise<boolean>;
 };

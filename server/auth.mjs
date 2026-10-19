@@ -8,6 +8,11 @@
  *   BIP_SESSION_SECRET  HMAC 密钥，随便一串长随机
  *
  * 两者都用 deploy/gen-admin-secret.mjs 生成。
+ *
+ * 环境变量里的那个叫「初始码」，永远有效，是兜底入口。
+ * 另外可以在 admin 里设一个「登录密码」（复杂度有要求），哈希存在库里，
+ * 两者任一通过都能登录。库里的那份在 API 启动时载入内存（loadCredential），
+ * 之后改密码直接更新内存，所以鉴权依然是同步的。
  */
 
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
@@ -20,6 +25,19 @@ export const COOKIE_NAME = 'bip_session';
 const TTL_MS = 30 * 24 * 3600 * 1000;
 
 export const isConfigured = () => Boolean(HASH && SECRET);
+
+/* ---------- 库里的登录密码 ---------- */
+
+let custom = { hash: '', version: 0 };
+
+/**
+ * version 写进会话令牌。改密码或移除密码时它会变，
+ * 之前签发的所有会话随之失效——密码是因为怀疑泄漏才换的，旧会话不该继续有效。
+ */
+export function loadCredential(doc) {
+  custom = { hash: doc?.hash ?? '', version: Number(doc?.version) || 0 };
+}
+export const hasCustomPassword = () => Boolean(custom.hash);
 
 /* ---------- 口令 ---------- */
 
@@ -36,9 +54,8 @@ function safeEqual(a, b) {
   return timingSafeEqual(ba, bb);
 }
 
-export function verifyPassword(password) {
-  if (!isConfigured() || typeof password !== 'string' || !password) return false;
-  const [scheme, salt, key] = HASH.split('$');
+function matchesHash(hash, password) {
+  const [scheme, salt, key] = hash.split('$');
   if (scheme !== 'scrypt' || !salt || !key) return false;
   let candidate;
   try {
@@ -49,12 +66,45 @@ export function verifyPassword(password) {
   return safeEqual(candidate, key);
 }
 
+/** 初始码 */
+export function verifyInitialCode(password) {
+  if (!isConfigured() || typeof password !== 'string' || !password) return false;
+  return matchesHash(HASH, password);
+}
+
+/** 初始码或登录密码，任一通过 */
+export function verifyPassword(password) {
+  if (!isConfigured() || typeof password !== 'string' || !password) return false;
+  // 两个都算完再合并，不因为第一个命中就少算一次而让耗时泄漏「用的是哪个」
+  const a = matchesHash(HASH, password);
+  const b = custom.hash ? matchesHash(custom.hash, password) : false;
+  return a || b;
+}
+
+/** 返回 null 表示合格，否则是给人看的原因 */
+export function passwordProblem(password) {
+  if (typeof password !== 'string') return '密码必须是字符串';
+  if (password.length < 12) return '至少 12 位';
+  // scrypt 故意很慢，不限长度的话一个超长密码就能拖住进程
+  if (password.length > 128) return '最多 128 位';
+  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) => r.test(password)).length;
+  if (classes < 3) return '大写、小写、数字、符号至少要用到 3 类';
+  if (/(.)\1{3,}/.test(password)) return '不要连续重复同一个字符';
+  if (verifyInitialCode(password)) return '不能和初始码相同';
+  return null;
+}
+
+/** 生成存库用的哈希和新的会话版本 */
+export function makeCredential(password) {
+  return { hash: hashPassword(password), version: Date.now() };
+}
+
 /* ---------- 会话令牌 ---------- */
 
 const sign = (payload) => createHmac('sha256', SECRET).update(payload).digest('base64url');
 
 export function issueToken(now = Date.now()) {
-  const payload = Buffer.from(JSON.stringify({ exp: now + TTL_MS })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ exp: now + TTL_MS, v: custom.version })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
@@ -66,8 +116,9 @@ export function verifyToken(token, now = Date.now()) {
   const sig = token.slice(dot + 1);
   if (!safeEqual(sign(payload), sig)) return false;
   try {
-    const { exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return typeof exp === 'number' && exp > now;
+    const { exp, v } = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    // 老令牌没有 v，按 0 算；从没设过密码时 version 也是 0，所以老会话不受影响
+    return typeof exp === 'number' && exp > now && (v ?? 0) === custom.version;
   } catch {
     return false;
   }

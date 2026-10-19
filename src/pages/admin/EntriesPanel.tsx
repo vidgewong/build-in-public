@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
 import { formatPeriod, periodKeyFor, todayKey, type Rule } from '../../lib/domain';
+import Pager, { usePaged } from './Pager';
 
 /**
  * 打卡面板。最常用的一屏——手机上进来就是它。
@@ -17,10 +18,17 @@ export default function EntriesPanel({ snap, run }: PanelProps) {
     (r) => !snap.entries.some((e) => e.ruleId === r.id && e.period === periodKeyFor(r.cadence, today))
   );
 
-  const recent = useMemo(
-    () => [...snap.entries].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 40),
+  // 天、周、月的周期不一样，混在一起会分不清「今天要打」还是「这周内打」
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    rules: pending.filter((r) => r.cadence === g.cadence),
+  })).filter((g) => g.rules.length > 0);
+
+  const sorted = useMemo(
+    () => [...snap.entries].sort((a, b) => (a.date < b.date ? 1 : -1)),
     [snap.entries]
   );
+  const { rows: recent, pager } = usePaged(sorted);
 
   const ruleOf = (id: string) => snap.rules.find((r) => r.id === id);
 
@@ -28,31 +36,36 @@ export default function EntriesPanel({ snap, run }: PanelProps) {
     <>
       <section className="admin-section">
         <h2 className="admin-h2">
-          今天还差 <span className="mono">{pending.length}</span> 项
+          还差 <span className="mono">{pending.length}</span> 项
         </h2>
 
         {pending.length === 0 ? (
-          <p className="admin-empty">今天的卡都打完了。</p>
+          <p className="admin-empty">该打的卡都打完了。</p>
         ) : (
-          <ul className="admin-pending">
-            {pending.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  className={`admin-pending-item${open === r.id ? ' is-open' : ''}`}
-                  onClick={() => setOpen(open === r.id ? null : r.id)}
-                >
-                  <span className="admin-pending-title">{r.title}</span>
-                  <span className="admin-pending-meta mono">
-                    {CADENCE[r.cadence]} · ¥{r.amount}
-                  </span>
-                </button>
-                {open === r.id && (
-                  <CheckForm rule={r} date={today} run={run} onDone={() => setOpen(null)} />
-                )}
-              </li>
-            ))}
-          </ul>
+          groups.map((g) => (
+            <div className="admin-pending-group" key={g.cadence}>
+              <h3 className="admin-h3">
+                {g.label} · 还差 <span className="mono">{g.rules.length}</span> 项
+              </h3>
+              <ul className="admin-pending">
+                {g.rules.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className={`admin-pending-item${open === r.id ? ' is-open' : ''}`}
+                      onClick={() => setOpen(open === r.id ? null : r.id)}
+                    >
+                      <span className="admin-pending-title">{r.title}</span>
+                      <span className="admin-pending-meta mono">¥{r.amount}</span>
+                    </button>
+                    {open === r.id && (
+                      <CheckForm rule={r} date={today} run={run} onDone={() => setOpen(null)} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
         )}
       </section>
 
@@ -106,14 +119,17 @@ export default function EntriesPanel({ snap, run }: PanelProps) {
             })}
           </ul>
         )}
+        <Pager {...pager} />
       </section>
     </>
   );
 }
 
-const CADENCE: Record<string, string> = {
-  daily: '每天', weekly: '每周', monthly: '每月', event: '随时',
-};
+const GROUPS = [
+  { cadence: 'daily', label: '每天 · 今天' },
+  { cadence: 'weekly', label: '每周 · 本周' },
+  { cadence: 'monthly', label: '每月 · 本月' },
+];
 
 /**
  * 证明类型。站点对 image 渲染缩略图，其余渲染成一个方块

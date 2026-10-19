@@ -30,9 +30,12 @@ DIR=$BACKUP_DIR
 STAMP=\$(date +%Y%m%d-%H%M%S)
 mongodump --uri='mongodb://127.0.0.1:27017/buildinpublic' \\
   --archive="\$DIR/\$STAMP.archive" --gzip --quiet
+# 赔付证明图片在磁盘上不在库里，库备份不带它们，得单独打包
+UP=/home/vidge/apps/build-in-public/uploads
+[[ -d "\$UP" ]] && tar -czf "\$DIR/\$STAMP.uploads.tgz" -C "\$UP" .
 # 只有确实生成了非空文件才算成功，不然轮转会把好备份删掉换成空的
 [[ -s "\$DIR/\$STAMP.archive" ]] || { echo "备份为空，没有轮转" >&2; exit 1; }
-find "\$DIR" -name '*.archive' -type f -mtime +$KEEP_DAYS -delete
+find "\$DIR" \\( -name '*.archive' -o -name '*.uploads.tgz' \\) -type f -mtime +$KEEP_DAYS -delete
 EOF
 chmod +x "$SCRIPT"
 ok "$SCRIPT"

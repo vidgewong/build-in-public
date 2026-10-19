@@ -9,6 +9,7 @@
  *
  * 本地调试指向本机 API：BIP_API=http://127.0.0.1:8787 bip status
  */
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -134,7 +135,16 @@ async function cmdCheck({ flags, positional }) {
 }
 
 async function cmdViolate({ flags, positional }) {
+  // --proof 可以逗号分隔多个本地图片路径。赔付必须有凭证，服务端会拒绝没有图的请求。
+  const files = String(flags.proof ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  const proof = [];
+  for (const f of files) {
+    let bytes;
+    try { bytes = readFileSync(f); } catch (e) { return fail(`读不了图片 ${f}：${e.message}`); }
+    proof.push(await http.uploadFile(bytes));
+  }
   const r = await http.post('/api/admin/claim', {
+    proof,
     rule: positional[0] ?? str(flags.rule),
     date: positional[1] ?? str(flags.date),
     claimant: str(flags.to) ?? str(flags.claimant),
@@ -359,10 +369,10 @@ ${bold('bip')} ${dim('— build-in-public')}  ${dim(`→ ${http.BASE}`)}
       ${dim('例：bip check 早起 --img https://…/wake.jpg')}
       ${dim('例：bip check wake-0800 10-05 --douyin https://v.douyin.com/xxx')}
 
-  ${cyan('bip violate')} <rule> [date] ${dim('--to <朋友> [--amount N] [--note "…"]')}
+  ${cyan('bip violate')} <rule> [date] ${dim('--to <朋友> --proof <图片> [--amount N] [--note "…"]')}
       记一笔违约赔付（朋友已领钱）。别名：bip claim
-      ${dim('例：bip violate 早起 yesterday --to 老王')}
-      ${dim('例：bip violate no-cry --to 小李')}
+      ${dim('必须附图片证明：--proof 转账截图.png[,第二张.jpg]')}
+      ${dim('例：bip violate 早起 yesterday --to 老王 --proof ~/Desktop/转账.png')}
 
   ${cyan('bip metric')} ${dim('[key] [value] [--label 名] [--unit kg] [--visibility public|masked|hidden] [--target N] [--hint "…"]')}
       查看/更新身体与人物指标（自动留存历史，不存在则创建）
