@@ -238,6 +238,7 @@ export async function deleteRuleCascade(ruleId) {
     c.entries.deleteMany({ ruleId }),
     c.claims.deleteMany({ ruleId }),
   ]);
+  await c.config.updateOne({ _id: 'calendar' }, { $pull: { waivers: { ruleId } } });
   await c.rules.deleteOne({ id: ruleId });
   return { entries: entries.deletedCount, claims: claims.deletedCount };
 }
@@ -282,26 +283,32 @@ export async function pushMetricHistory(key, point, cap = 200) {
   );
 }
 
-export async function addExemption(date, reason) {
+export async function hasWaiver(ruleId, period) {
   const c = await cols();
-  // 先保证 calendar 文档存在（分两步，避免 upsert 撞上 _id 唯一键）
+  const doc = await c.config.findOne({ _id: 'calendar', waivers: { $elemMatch: { ruleId, period } } });
+  return Boolean(doc);
+}
+
+export async function addWaiver(ruleId, period, reason) {
+  const c = await cols();
   await c.config.updateOne(
     { _id: 'calendar' },
     { $setOnInsert: { ...DEFAULT_CALENDAR } },
     { upsert: true }
   );
   const res = await c.config.updateOne(
-    { _id: 'calendar', 'manualExemptions.date': { $ne: date } },
-    { $push: { manualExemptions: { $each: [{ date, reason }], $sort: { date: 1 } } } }
+    { _id: 'calendar', waivers: { $not: { $elemMatch: { ruleId, period } } } },
+    { $push: { waivers: { ruleId, period, reason } } }
   );
   return res.modifiedCount > 0;
 }
 
-export async function removeExemption(date) {
+export async function removeWaiver(ruleId, period) {
   const c = await cols();
   const res = await c.config.updateOne(
     { _id: 'calendar' },
-    { $pull: { manualExemptions: { date } } }
+    { $pull: { waivers: { ruleId, period } } }
   );
   return res.modifiedCount > 0;
 }
+

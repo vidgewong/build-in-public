@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
-import { formatPeriod, todayKey } from '../../lib/domain';
+import { formatPeriod, periodKeyFor, periodsInRange, periodStart, todayKey } from '../../lib/domain';
 import ImagePicker from './ImagePicker';
 import Pager, { usePaged } from './Pager';
 
 /**
- * 赔付与豁免。
+ * 赔付与豁免赔付。
  * 赔付是「朋友在微信上抓到我违约、我付了钱」之后的记账，所以默认日期是今天，
  * 但可以往回改——抓到和付钱之间经常隔一天。
  */
@@ -16,6 +16,11 @@ export default function LedgerPanel({ snap, run, notify }: PanelProps) {
     [snap.claims]
   );
   const { rows: claimRows, pager } = usePaged(sortedClaims);
+  const waivers = useMemo(
+    () => [...(snap.calendar.waivers ?? [])].sort((a, b) => (a.period < b.period ? 1 : a.period > b.period ? -1 : 0)),
+    [snap.calendar.waivers]
+  );
+  const { rows: waiverRows, pager: waiverPager } = usePaged(waivers);
 
   return (
     <>
@@ -84,32 +89,49 @@ export default function LedgerPanel({ snap, run, notify }: PanelProps) {
       </section>
 
       <section className="admin-section">
-        <h2 className="admin-h2">豁免日</h2>
-        <p className="admin-hint">标记后，当天所有「法定节假日豁免」的规则都不计缺勤。</p>
-        <ExemptionForm run={run} />
+        <h2 className="admin-h2">
+          豁免赔付 <span className="mono">{waivers.length}</span> 期
+        </h2>
+        <p className="admin-hint">
+          生病、节假日等确实做不到的周期：不赔钱，但<b>仍然算失约</b>——计入总次数，守约率照常下降。
+        </p>
+        <WaiverForm snap={snap} run={run} />
 
-        {snap.calendar.manualExemptions.length === 0 ? (
-          <p className="admin-empty">还没有手动豁免。</p>
+        {waivers.length === 0 ? (
+          <p className="admin-empty">还没有豁免赔付。</p>
         ) : (
-          <ul className="admin-list">
-            {[...snap.calendar.manualExemptions].sort((a, b) => (a.date < b.date ? 1 : -1)).map((x) => (
-              <li className="admin-row" key={x.date}>
-                <div className="admin-row-main">
-                  <span className="admin-row-title mono">{x.date}</span>
-                  <span className="admin-row-sub">{x.reason}</span>
-                </div>
-                <div className="admin-row-actions">
-                  <button
-                    type="button"
-                    className="admin-btn is-danger is-small"
-                    onClick={() => void run(() => adminApi.setExemption(x.date, undefined, true), '已取消豁免')}
-                  >
-                    取消
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="admin-list">
+              {waiverRows.map((w) => {
+                const rule = snap.rules.find((r) => r.id === w.ruleId);
+                return (
+                  <li className="admin-row" key={`${w.ruleId}:${w.period}`}>
+                    <div className="admin-row-main">
+                      <span className="admin-row-title">{rule?.title ?? w.ruleId}</span>
+                      <span className="admin-row-sub mono">
+                        {rule ? formatPeriod(rule.cadence, w.period) : w.period} · {w.reason}
+                      </span>
+                    </div>
+                    <div className="admin-row-actions">
+                      <button
+                        type="button"
+                        className="admin-btn is-danger is-small"
+                        onClick={() =>
+                          void run(
+                            () => adminApi.setWaiver({ rule: w.ruleId, period: w.period, remove: true }),
+                            '已取消豁免赔付'
+                          )
+                        }
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <Pager {...waiverPager} />
+          </>
         )}
       </section>
     </>
@@ -199,31 +221,124 @@ function ClaimForm({ snap, run, notify }: PanelProps) {
   );
 }
 
-function ExemptionForm({ run }: { run: PanelProps['run'] }) {
-  const [date, setDate] = useState(todayKey());
+function WaiverForm({ snap, run }: { snap: PanelProps['snap']; run: PanelProps['run'] }) {
+  const rules = snap.rules.filter((r) => r.active && r.cadence !== 'event');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [from, setFrom] = useState(todayKey());
+  const [to, setTo] = useState(todayKey());
   const [reason, setReason] = useState('');
+
+  const waived = useMemo(
+    () => new Set((snap.calendar.waivers ?? []).map((w) => `${w.ruleId}:${w.period}`)),
+    [snap.calendar.waivers]
+  );
+
+  // 预览：哪些周期会被豁免。已打卡、已赔付、已豁免、早于起算日的会被跳过，这里提前标出来
+  const preview = useMemo(() => {
+    if (!from || !to || from > to) return [];
+    return rules
+      .filter((r) => picked.includes(r.id))
+      .map((rule) => {
+        const periods = periodsInRange(rule.cadence, from, to).map((p) => {
+          let skip = '';
+          if (periodStart(rule.cadence, p) < periodStart(rule.cadence, periodKeyFor(rule.cadence, rule.startDate))) skip = '早于起算日';
+          else if (snap.entries.some((e) => e.ruleId === rule.id && e.period === p)) skip = '已打卡';
+          else if (snap.claims.some((c) => c.ruleId === rule.id && c.period === p)) skip = '已赔付';
+          else if (waived.has(`${rule.id}:${p}`)) skip = '已豁免';
+          return { period: p, skip };
+        });
+        return { rule, periods };
+      });
+  }, [rules, picked, from, to, snap.entries, snap.claims, waived]);
+
+  if (!rules.length) return <p className="admin-empty">还没有周期类规则。</p>;
+
+  const total = preview.reduce((n, g) => n + g.periods.filter((p) => !p.skip).length, 0);
+  const toggle = (id: string) =>
+    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
   return (
     <div className="admin-form">
+      <div className="admin-field">
+        <span className="admin-field-label">
+          规则（可多选）{' '}
+          <button
+            type="button"
+            className="admin-btn is-small"
+            onClick={() => setPicked(picked.length === rules.length ? [] : rules.map((r) => r.id))}
+          >
+            {picked.length === rules.length ? '全不选' : '全选'}
+          </button>
+        </span>
+        <div className="admin-checks">
+          {rules.map((r) => (
+            <label className="admin-check" key={r.id}>
+              <input type="checkbox" checked={picked.includes(r.id)} onChange={() => toggle(r.id)} />
+              <span>
+                {r.title}
+                <span className="admin-row-sub mono"> {r.cadence === 'daily' ? '每日' : r.cadence === 'weekly' ? '每周' : '每月'}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="admin-field-row">
         <label className="admin-field">
-          <span className="admin-field-label">日期</span>
-          <input className="admin-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <span className="admin-field-label">从</span>
+          <input
+            className="admin-input"
+            type="date"
+            value={from}
+            onChange={(e) => { setFrom(e.target.value); if (e.target.value > to) setTo(e.target.value); }}
+          />
         </label>
         <label className="admin-field">
-          <span className="admin-field-label">理由</span>
-          <input className="admin-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="手动豁免" />
+          <span className="admin-field-label">到（含）</span>
+          <input className="admin-input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
+      <p className="admin-hint">
+        每周 / 每月的规则，范围碰到哪一周（月）就豁免那一整周（月）——选周内任意一天即可。
+      </p>
+
+      <label className="admin-field">
+        <span className="admin-field-label">理由</span>
+        <input className="admin-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="比如：生病 / 国庆" />
+      </label>
+
+      {preview.length > 0 && (
+        <ul className="admin-list">
+          {preview.map(({ rule, periods }) => (
+            <li className="admin-row" key={rule.id}>
+              <div className="admin-row-main">
+                <span className="admin-row-title">{rule.title}</span>
+                <span className="admin-row-sub mono">
+                  {periods.length > 8
+                    ? `${periods.filter((p) => !p.skip).length} / ${periods.length} 期将被豁免`
+                    : periods
+                        .map((p) => `${formatPeriod(rule.cadence, p.period)}${p.skip ? `（跳过：${p.skip}）` : ''}`)
+                        .join('  ')}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <button
         type="button"
         className="admin-btn is-primary"
+        disabled={total === 0 || !reason.trim()}
         onClick={async () => {
-          const okay = await run(() => adminApi.setExemption(date, reason.trim() || undefined), '已豁免');
+          const okay = await run(
+            () => adminApi.setWaiver({ rules: picked, from, to, reason: reason.trim() }),
+            `已豁免 ${total} 期赔付（仍计为失约）`
+          );
           if (okay) setReason('');
         }}
       >
-        标记豁免
+        {total === 0 ? '没有可豁免的周期' : !reason.trim() ? '请填写理由' : `豁免 ${total} 期赔付`}
       </button>
     </div>
   );

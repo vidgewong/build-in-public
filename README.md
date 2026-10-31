@@ -13,7 +13,7 @@ MongoDB  ←→  server/repo.mjs  ←→  server/api.mjs  →  GET /api/snapshot
 ```
 
 - **没有登录**。站点只读，所有写入都走本机 CLI。
-- 判定逻辑（周期、缺口、豁免）在 `src/lib/domain.ts`，站点和 CLI 共用同一套规则。
+- 判定逻辑（周期、缺口、豁免赔付）在 `src/lib/domain.ts`，站点和 CLI 共用同一套规则。
 
 ### 集合
 
@@ -68,7 +68,7 @@ npm run bip -- <command>      # 或 npx bip <command>
 | `bip check <rule> [date] --img <url>` | 打卡，附证明 |
 | `bip violate <rule> [date] --to <朋友>` | 记一笔赔付（别名 `bip claim`） |
 | `bip metric <key> <value>` | 更新指标，自动留历史 |
-| `bip exempt <date> [理由] [--rm]` | 手动豁免某天 |
+| `bip waive <rule[,rule…]> [date] [理由] [--from d --to d] [--rm]` | 豁免赔付：不赔钱，但仍算失约、计入守约率 |
 | `bip rule list\|add\|set\|on\|off` | 管理规则 |
 
 date 支持 `YYYY-MM-DD` / `MM-DD` / `today` / `yesterday` / `-3`。

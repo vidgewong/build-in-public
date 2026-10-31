@@ -17,7 +17,6 @@ export interface Rule {
   proof: string;
   detail: string;
   startDate: string;
-  holidayExempt: boolean;
   active: boolean;
   /** 展示顺序。老数据可能没有，按 0 处理 */
   order?: number;
@@ -47,8 +46,8 @@ export interface Claim {
 }
 
 export interface Calendar {
-  legalHolidays: Record<string, string[]>;
-  manualExemptions: { date: string; reason: string }[];
+  /** 豁免赔付：按「规则 + 周期」。仍算失约、计入守约率，只是不可领取 */
+  waivers?: { ruleId: string; period: string; reason: string }[];
 }
 
 export type SlotStatus =
@@ -56,7 +55,7 @@ export type SlotStatus =
   | 'open'       // 缺记录，在滚动窗口内，可领取
   | 'claimed'    // 缺记录且已被领走
   | 'expired'    // 缺记录但超出滚动窗口，作废
-  | 'exempt'     // 豁免（法定节假日 / 手动）
+  | 'waived'     // 豁免赔付（生病 / 节假日等）：算失约、计入统计，但不可领取
   | 'future'     // 还没到
   | 'pending';   // 今天，还没到结算时刻
 
@@ -68,7 +67,7 @@ export interface Slot {
   status: SlotStatus;
   entry?: Entry;
   claim?: Claim;
-  exemptReason?: string;
+  waiverReason?: string;
 }
 
 export interface BuildOptions {
@@ -87,7 +86,7 @@ export interface RuleSummary {
   openAmount: number;
   keptCount: number;
   totalDue: number;
-  /** 应计周期总数（不含 future/pending/exempt） */
+  /** 应计周期总数（不含 future/pending；waived 计入） */
   settledCount: number;
   keepRate: number;
   /** 连续守约（从最近已结算周期往回数） */
@@ -110,11 +109,8 @@ export declare function monthKey(key: string): string;
 export declare function periodKeyFor(cadence: Cadence, dateKey: string): string;
 export declare function periodStart(cadence: Cadence, period: string): string;
 export declare function periodEnd(cadence: Cadence, period: string): string;
+export declare function periodsInRange(cadence: Cadence, from: string, to: string): string[];
 export declare function formatPeriod(cadence: Cadence, period: string): string;
-export declare function exemptionFor(
-  calendar: Calendar,
-  dateKey: string
-): { reason: string } | null;
 export declare function buildSlots(
   rule: Rule,
   entries: Entry[],

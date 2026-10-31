@@ -31,7 +31,7 @@ export default function Rules() {
               <strong>滚动 {claimWindowDays} 天内</strong>的违约事件都还作数。
             </li>
             <li>
-              法定节假日和我提前标注的豁免日不计入。<strong>其余一律算数。</strong>
+              生病、节假日等确实做不到的日子，我可以申请豁免赔付——<strong>不赔钱，但仍然算失约、计入守约率。</strong>
             </li>
           </ol>
         </div>

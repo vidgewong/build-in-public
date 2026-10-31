@@ -58,7 +58,7 @@
   --text: #4a4740;
   --text-lo: #857e72;
 
-  /* 守约格子整格铺浅绿。以前是 #d6d1c8 的米灰，和 expired / exempt 的灰几乎分不开，
+  /* 守约格子整格铺浅绿。以前是 #d6d1c8 的米灰，和 expired 的灰几乎分不开，
      结果整格看着是灰的，只有有证明的格子右下角那个缺角是绿的 */
   --kept: #a3d1b5;
   --kept-hi: #2f7d55;
@@ -687,7 +687,6 @@ button {
 .slot.has-proof:hover::after,
 .slot.has-proof:focus-visible::after { opacity: 1; }
 
-.slot.is-exempt { background: var(--ink-700); }
 .slot.is-pending {
   background: var(--ink-700);
   box-shadow: inset 0 0 0 1px var(--line-hi);
@@ -695,6 +694,14 @@ button {
 .slot.is-future { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-700); }
 .slot.is-expired { background: var(--ink-600); }
 .slot.is-claimed { background: var(--claimed); }
+/* 豁免赔付：失约但不赔。灰底加红色斜纹，和纯灰的 expired 区分开 */
+.slot.is-waived {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--ink-600) 0 3px,
+    color-mix(in srgb, var(--open) 55%, var(--ink-600)) 3px 5px
+  );
+}
 
 .slot.is-open {
   background: var(--open);
@@ -1016,6 +1023,7 @@ button {
 .slot-panel-status.is-open { color: var(--open); }
 .slot-panel-status.is-kept { color: var(--kept-hi); }
 .slot-panel-status.is-claimed { color: var(--claimed-hi); }
+.slot-panel-status.is-waived { color: var(--open); }
 
 .slot-panel-close {
   flex: none;
@@ -2567,6 +2575,12 @@ button {
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
+}
+
+.admin-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
 .admin-check input { width: 17px; height: 17px; accent-color: var(--gold); }

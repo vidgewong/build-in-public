@@ -12,7 +12,7 @@
 import * as repo from './repo.mjs';
 import * as auth from './auth.mjs';
 import * as storage from './storage.mjs';
-import { addDays, periodKeyFor, todayKey } from '../shared/domain.mjs';
+import { addDays, daysBetween, periodKeyFor, periodsInRange, periodStart, todayKey } from '../shared/domain.mjs';
 
 /** 校验失败。调用方据此回 400 而不是 500。 */
 export class ValidationError extends Error {
@@ -33,7 +33,7 @@ export const VISIBILITIES = ['public', 'masked', 'hidden'];
 /** 规则允许写入的字段。白名单之外一律拒绝——以前是透传，打错 --titel 会静默存进去。 */
 const RULE_FIELDS = new Set([
   'id', 'title', 'short', 'cadence', 'type', 'amount',
-  'proof', 'detail', 'startDate', 'holidayExempt', 'active', 'order',
+  'proof', 'detail', 'startDate', 'active', 'order',
 ]);
 
 export const rid = () =>
@@ -211,6 +211,10 @@ export async function recordViolation({ rule: ruleRef, date: dateInput, claimant
     bad(`「${rule.title}」${period} 已经被领走了，一个周期只能被领一次。`);
   }
 
+  if (await repo.hasWaiver(rule.id, period)) {
+    bad(`「${rule.title}」${period} 已豁免赔付，不能再记赔付。要赔的话先取消豁免。`);
+  }
+
   const paid = Number(amount ?? rule.amount);
   if (!Number.isFinite(paid) || paid < 0) bad(`金额不合法：${amount}`);
 
@@ -273,7 +277,7 @@ function sanitizeRulePatch(input) {
       const n = Number(v);
       if (!Number.isFinite(n)) bad(`${k} 必须是数字，收到：${v}`);
       patch[k] = n;
-    } else if (k === 'holidayExempt' || k === 'active') {
+    } else if (k === 'active') {
       patch[k] = v === true || v === 'true';
     } else {
       patch[k] = String(v);
@@ -310,7 +314,6 @@ export async function createRule(input) {
     proof: patch.proof ?? '',
     detail: patch.detail ?? '',
     startDate: patch.startDate || todayKey(),
-    holidayExempt: patch.holidayExempt ?? false,
     active: patch.active ?? true,
     // 新规则排在最后
     order: patch.order ?? (rules.length ? Math.max(...rules.map((r) => r.order ?? 0)) + 1 : 0),
@@ -408,19 +411,75 @@ export async function deleteMetric(key) {
   return { key };
 }
 
-/* ---------- 豁免 ---------- */
+/* ---------- 豁免赔付 ---------- */
 
-export async function setExemption(dateInput, reason, { remove = false } = {}) {
-  const date = resolveDate(dateInput);
+/** 一次最多展开这么多天，防止手滑填成十年 */
+const MAX_WAIVE_DAYS = 400;
 
-  if (remove) {
-    const removed = await repo.removeExemption(date);
-    return { date, removed, added: false };
+/**
+ * 豁免赔付：生病、节假日等确实做不到的周期。
+ * 这一期仍然算失约（进分母、拉低守约率），只是不能被领取、不用赔钱。
+ *
+ * 目标周期三种给法，可组合多条规则（rules 数组）：
+ *   - period：直接给周期键（2026-W44）
+ *   - date：周期内任意一天
+ *   - from + to：日期范围，覆盖到的每个周期都豁免
+ * 已有打卡、已赔付、已豁免、早于起算日的周期会被跳过并说明原因，不会整体失败。
+ * remove=true 则是取消豁免。
+ */
+export async function setWaiver({ rule: ruleRef, rules: ruleRefs, period, date, from, to, reason, remove = false }) {
+  const refs = Array.isArray(ruleRefs) && ruleRefs.length ? ruleRefs : [ruleRef];
+  const text = (typeof reason === 'string' && reason.trim()) || '豁免赔付';
+  const entries = remove ? [] : await repo.getEntries();
+
+  const added = [];
+  const removed = [];
+  const skipped = [];
+
+  for (const ref of refs) {
+    const rule = await mustFindRule(ref);
+    if (rule.cadence === 'event') bad(`「${rule.title}」是事件类规则，没有周期可豁免。`);
+
+    let periods;
+    if (period) {
+      const shape = { daily: /^\d{4}-\d{2}-\d{2}$/, weekly: /^\d{4}-W\d{2}$/, monthly: /^\d{4}-\d{2}$/ }[rule.cadence];
+      if (!shape.test(period)) bad(`周期格式不对：${period}（「${rule.title}」是 ${rule.cadence} 规则）`);
+      periods = [period];
+    } else if (from || to) {
+      const a = resolveDate(from || to);
+      const b = resolveDate(to || from);
+      if (a > b) bad(`日期范围反了：${a} 晚于 ${b}`);
+      if (daysBetween(a, b) > MAX_WAIVE_DAYS) bad(`一次最多豁免 ${MAX_WAIVE_DAYS} 天`);
+      periods = periodsInRange(rule.cadence, a, b);
+    } else {
+      periods = [periodKeyFor(rule.cadence, resolveDate(date))];
+    }
+
+    for (const p of periods) {
+      const item = { ruleId: rule.id, title: rule.title, period: p };
+      if (remove) {
+        if (await repo.removeWaiver(rule.id, p)) removed.push(item);
+        else skipped.push({ ...item, why: '本来就没有豁免' });
+        continue;
+      }
+      if (periodStart(rule.cadence, p) < periodStart(rule.cadence, periodKeyFor(rule.cadence, rule.startDate))) {
+        skipped.push({ ...item, why: '早于规则起算日' });
+      } else if (entries.some((e) => e.ruleId === rule.id && e.period === p)) {
+        skipped.push({ ...item, why: '已打卡，是守约的' });
+      } else if (await repo.hasClaim(rule.id, p)) {
+        skipped.push({ ...item, why: '已赔付' });
+      } else if (await repo.addWaiver(rule.id, p, text)) {
+        added.push(item);
+      } else {
+        skipped.push({ ...item, why: '已经豁免过了' });
+      }
+    }
   }
 
-  const added = await repo.addExemption(date, reason || '手动豁免');
-  if (!added) bad(`${date} 已有豁免记录`);
-  return { date, added: true, removed: false, reason: reason || '手动豁免' };
+  if (!remove && !added.length) {
+    bad(`没有可豁免的周期：${skipped.map((x) => `${x.title} ${x.period}（${x.why}）`).join('；') || '范围内没有周期'}`);
+  }
+  return { added, removed, skipped, reason: text };
 }
 
 /* ---------- 个人档案 ---------- */

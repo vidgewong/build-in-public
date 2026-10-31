@@ -109,6 +109,20 @@ export function periodEnd(cadence, period) {
   }
 }
 
+/** [from, to]（含）覆盖到的所有周期键，按时间升序 */
+export function periodsInRange(cadence, from, to) {
+  const out = [];
+  const seen = new Set();
+  for (let d = from; daysBetween(d, to) >= 0; d = addDays(d, 1)) {
+    const p = periodKeyFor(cadence, d);
+    if (!seen.has(p)) {
+      seen.add(p);
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 export function formatPeriod(cadence, period) {
   switch (cadence) {
     case 'weekly': {
@@ -121,18 +135,6 @@ export function formatPeriod(cadence, period) {
     default:
       return period.slice(5).replace('-', '/');
   }
-}
-
-/* ---------- 豁免 ---------- */
-
-export function exemptionFor(calendar, dateKey) {
-  const manual = calendar.manualExemptions?.find((e) => e.date === dateKey);
-  if (manual) return { reason: manual.reason };
-  const year = dateKey.slice(0, 4);
-  if (calendar.legalHolidays?.[year]?.includes(dateKey)) {
-    return { reason: '法定节假日' };
-  }
-  return null;
 }
 
 /* ---------- 核心：展开周期格子 ---------- */
@@ -156,6 +158,10 @@ export function buildSlots(rule, entries, claims, calendar, opts) {
   for (const c of claims) {
     if (c.ruleId === rule.id) claimByPeriod.set(c.period, c);
   }
+  const waiverByPeriod = new Map();
+  for (const w of calendar.waivers ?? []) {
+    if (w.ruleId === rule.id) waiverByPeriod.set(w.period, w);
+  }
 
   const slots = [];
   const windowStart = addDays(today, -claimWindowDays);
@@ -168,7 +174,8 @@ export function buildSlots(rule, entries, claims, calendar, opts) {
     const period = periodKeyFor(rule.cadence, cursor);
     if (!seen.has(period)) {
       seen.add(period);
-      slots.push(makeSlot(rule, period, entryByPeriod, claimByPeriod, calendar, {
+      slots.push(makeSlot(rule, period, entryByPeriod, claimByPeriod, {
+        waiverByPeriod,
         today,
         windowStart,
         settleHour,
@@ -181,7 +188,7 @@ export function buildSlots(rule, entries, claims, calendar, opts) {
   return slots;
 }
 
-function makeSlot(rule, period, entryByPeriod, claimByPeriod, calendar, ctx) {
+function makeSlot(rule, period, entryByPeriod, claimByPeriod, ctx) {
   const start = periodStart(rule.cadence, period);
   const end = periodEnd(rule.cadence, period);
   const entry = entryByPeriod.get(period);
@@ -191,13 +198,13 @@ function makeSlot(rule, period, entryByPeriod, claimByPeriod, calendar, ctx) {
 
   if (entry) return { ...base, status: 'kept' };
 
-  // 豁免：daily 看当天；weekly/monthly 整个周期都豁免才算豁免（过于宽松反而失真，所以只对 daily 生效）
-  if (rule.holidayExempt && rule.cadence === 'daily') {
-    const ex = exemptionFor(calendar, start);
-    if (ex) return { ...base, status: 'exempt', exemptReason: ex.reason };
-  }
-
   if (claim) return { ...base, status: 'claimed' };
+
+  // 豁免赔付（生病、节假日等做不到的情况）：算失约、进分母，只是这一格不再可领取。
+  // 排在 pending / expired 之前：豁免一登记就立刻显示，不必等周期结束；
+  // 超出追溯期的豁免也仍然是一次失约，不会悄悄变成「作废」。已有打卡则仍是守约（上面已返回）。
+  const waiver = ctx.waiverByPeriod.get(period);
+  if (waiver) return { ...base, status: 'waived', waiverReason: waiver.reason };
 
   // 周期尚未结束 → 还有机会补记录
   if (daysBetween(ctx.today, end) > 0) return { ...base, status: 'pending' };
@@ -220,7 +227,8 @@ export function summarize(rule, slots, claims) {
   const open = slots.filter((s) => s.status === 'open');
   const kept = slots.filter((s) => s.status === 'kept');
   const settled = slots.filter((s) =>
-    s.status === 'kept' || s.status === 'open' || s.status === 'claimed' || s.status === 'expired'
+    s.status === 'kept' || s.status === 'open' || s.status === 'claimed' ||
+    s.status === 'expired' || s.status === 'waived'
   );
 
   // 连续守约：从最后一个已结算周期往回

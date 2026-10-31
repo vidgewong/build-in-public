@@ -65,7 +65,6 @@ export default function RulesPanel({ snap, run }: PanelProps) {
                 <span className="admin-row-sub mono">
                   {r.id} · {CADENCES.find((c) => c.value === r.cadence)?.label ?? r.cadence} · ¥{r.amount} ·{' '}
                   {r.type === 'checkin' ? '打卡' : '违约'}
-                  {r.holidayExempt ? ' · 节假日豁免' : ''}
                 </span>
               </div>
               <div className="admin-row-actions">
@@ -118,7 +117,7 @@ export default function RulesPanel({ snap, run }: PanelProps) {
 
 type Draft = {
   id: string; title: string; short: string; cadence: string; type: string;
-  amount: string; proof: string; detail: string; startDate: string; holidayExempt: boolean;
+  amount: string; proof: string; detail: string; startDate: string;
 };
 
 function RuleForm({
@@ -139,7 +138,6 @@ function RuleForm({
     proof: rule?.proof ?? '',
     detail: rule?.detail ?? '',
     startDate: rule?.startDate ?? todayKey(),
-    holidayExempt: rule?.holidayExempt ?? false,
   });
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
@@ -154,7 +152,6 @@ function RuleForm({
       proof: d.proof.trim(),
       detail: d.detail.trim(),
       startDate: d.startDate,
-      holidayExempt: d.holidayExempt,
     };
     void onSubmit(mode === 'create' ? { ...base, id: d.id.trim() } : base);
   };
@@ -224,11 +221,6 @@ function RuleForm({
         <label className="admin-field">
           <span className="admin-field-label">起算日</span>
           <input className="admin-input" type="date" value={d.startDate} onChange={(e) => set('startDate', e.target.value)} />
-        </label>
-
-        <label className="admin-check">
-          <input type="checkbox" checked={d.holidayExempt} onChange={(e) => set('holidayExempt', e.target.checked)} />
-          <span>法定节假日豁免</span>
         </label>
       </div>
 

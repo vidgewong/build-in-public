@@ -157,17 +157,25 @@ async function cmdViolate({ flags, positional }) {
 
 const cmdClaim = cmdViolate;
 
-async function cmdExempt({ flags, positional }) {
-  const date = positional[0] ?? str(flags.date);
-  const reason = positional.slice(1).join(' ') || str(flags.reason);
+async function cmdWaive({ flags, positional }) {
   const remove = Boolean(flags.remove || flags.rm);
-
-  const r = await http.post('/api/admin/exemption', { date, reason, remove });
+  // bip waive <rule[,rule2]> [date] [理由…]   |   --from 10-01 --to 10-07 范围
+  const r = await http.post('/api/admin/waiver', {
+    rules: (positional[0] ?? str(flags.rule) ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+    date: flags.from || flags.to ? undefined : (positional[1] ?? str(flags.date)),
+    from: str(flags.from),
+    to: str(flags.to),
+    period: str(flags.period),
+    reason: positional.slice(flags.from || flags.to ? 1 : 2).join(' ') || str(flags.reason),
+    remove,
+  });
+  const line = (x) => `${x.title} ${x.period}`;
   if (remove) {
-    return console.log(r.removed
-      ? green(`✓ 已移除 ${r.date} 的豁免`) : yellow(`${r.date} 本来就没有手动豁免`));
+    r.removed.forEach((x) => console.log(green('✓ 已取消豁免赔付'), bold(line(x))));
+  } else {
+    r.added.forEach((x) => console.log(green('✓ 已豁免赔付'), bold(line(x)), dim(`· ${r.reason} · 仍计为失约`)));
   }
-  console.log(green('✓ 已豁免'), bold(r.date), dim(`· ${r.reason}`));
+  r.skipped.forEach((x) => console.log(yellow(`- 跳过 ${line(x)}：${x.why}`)));
 }
 
 async function cmdMetric({ flags, positional }) {
@@ -225,7 +233,6 @@ async function cmdRule({ flags, positional }) {
     }
     if (flags.amount !== undefined) body.amount = flags.amount;
     if (flags.start !== undefined) body.startDate = flags.start;
-    if (flags.holidayExempt !== undefined) body.holidayExempt = flags.holidayExempt !== 'false';
     const saved = await http.post('/api/admin/rule', body);
     return console.log(green('✓ 已新增规则'), bold(saved.id));
   }
@@ -299,7 +306,7 @@ async function cmdStatus({ flags }) {
     });
     const s = summarize(rule, slots, claims);
     const open = slots.filter((x) => x.status === 'open').map((x) => x.period);
-    const exempt = slots.filter((x) => x.status === 'exempt').length;
+    const waived = slots.filter((x) => x.status === 'waived').length;
     const claimed = slots.filter((x) => x.status === 'claimed').length;
     const expired = slots.filter((x) => x.status === 'expired').length;
 
@@ -313,7 +320,7 @@ async function cmdStatus({ flags }) {
     })();
 
     console.log(`  ${bold(padTo(rule.title, 18))} ${cyan(padTo(rule.cadence, 8))} ${bar} ${String(rate).padStart(3)}%`);
-    console.log(`  ${" ".repeat(18)} 守约 ${green(s.keptCount)}  豁免 ${dim(exempt)}  已赔 ${red(claimed)}  作废 ${dim(expired)}`);
+    console.log(`  ${" ".repeat(18)} 守约 ${green(s.keptCount)}  豁免 ${dim(waived)}  已赔 ${red(claimed)}  作废 ${dim(expired)}`);
     if (open.length) {
       console.log(`  ${" ".repeat(18)} ${red(`⚠ ${open.length} 个缺口可被领取 ¥${s.openAmount}`)}`);
       console.log(`  ${" ".repeat(18)} ${dim(open.slice(-12).join('  '))}${open.length > 12 ? dim(' …') : ''}`);
@@ -378,7 +385,8 @@ ${bold('bip')} ${dim('— build-in-public')}  ${dim(`→ ${http.BASE}`)}
       查看/更新身体与人物指标（自动留存历史，不存在则创建）
       ${dim('例：bip metric weight 67.8')}
 
-  ${cyan('bip exempt')} <date> [理由] ${dim('[--rm]')}       手动豁免某天
+  ${cyan('bip waive')} <rule[,rule…]> [date] [理由] ${dim('豁免赔付：不赔钱，但仍算失约')}
+      ${dim('--from 10-01 --to 10-07 按范围；--period 2026-W44 指定周期；--rm 取消')}
   ${cyan('bip rule')} list|add|set|on|off|rm ${dim('[…]')}    管理规则
   ${cyan('bip build')}                                 构建静态站到 dist/
 
@@ -389,7 +397,7 @@ ${dim('指向别处：BIP_API=http://127.0.0.1:8787 bip status')}
 const COMMANDS = {
   login: cmdLogin, logout: cmdLogout,
   today: cmdToday, status: cmdStatus, check: cmdCheck, violate: cmdViolate,
-  claim: cmdClaim, metric: cmdMetric, exempt: cmdExempt, rule: cmdRule, build: cmdBuild,
+  claim: cmdClaim, metric: cmdMetric, waive: cmdWaive, rule: cmdRule, build: cmdBuild,
 };
 
 async function main() {

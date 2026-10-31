@@ -33,7 +33,7 @@ export {
   periodStart,
   periodEnd,
   formatPeriod,
-  exemptionFor,
+  periodsInRange,
   buildSlots,
   summarize,
 } from '../../shared/domain.mjs';

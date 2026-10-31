@@ -64,4 +64,4 @@ export async function ensureIndexes(database) {
 }
 
 export const DEFAULT_SETTINGS = { claimWindowDays: 30, currency: '¥' };
-export const DEFAULT_CALENDAR = { legalHolidays: {}, manualExemptions: [] };
+export const DEFAULT_CALENDAR = { waivers: [] };

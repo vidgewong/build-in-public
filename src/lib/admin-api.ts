@@ -72,8 +72,16 @@ export const adminApi = {
   saveMetric: (body: MetricInput) => call<unknown>('POST', '/metric', body),
   deleteMetric: (key: string) => call<unknown>('DELETE', `/metric/${encodeURIComponent(key)}`),
 
-  setExemption: (date: string, reason?: string, remove?: boolean) =>
-    call<unknown>('POST', '/exemption', { date, reason, remove }),
+  setWaiver: (body: {
+    rule?: string;
+    rules?: string[];
+    period?: string;
+    date?: string;
+    from?: string;
+    to?: string;
+    reason?: string;
+    remove?: boolean;
+  }) => call<unknown>('POST', '/waiver', body),
 
   saveProfile: (body: Partial<Profile>) => call<unknown>('POST', '/profile', body),
 };
@@ -121,7 +129,6 @@ export interface RuleInput {
   proof?: string;
   detail?: string;
   startDate?: string;
-  holidayExempt?: boolean;
   active?: boolean;
   order?: number;
 }

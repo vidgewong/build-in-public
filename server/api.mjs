@@ -25,7 +25,7 @@
  *     DELETE /api/admin/rule/:id
  *     POST   /api/admin/metric
  *     DELETE /api/admin/metric/:key
- *     POST   /api/admin/exemption { date, reason, remove }
+ *     POST   /api/admin/waiver    { rule, period|date|from+to, reason, remove }  豁免赔付，仍算失约
  *     POST   /api/admin/profile
  *
  * 写入逻辑一概不在这里，全在 server/actions.mjs——CLI 调的是同一份。
@@ -215,8 +215,8 @@ async function handleAdmin(req, res, url) {
       return send(res, 200, await actions.toggleRule(body.id ?? body.rule, body.active));
     case '/metric':
       return send(res, 200, await actions.saveMetric(body));
-    case '/exemption':
-      return send(res, 200, await actions.setExemption(body.date, body.reason, { remove: body.remove }));
+    case '/waiver':
+      return send(res, 200, await actions.setWaiver(body));
     case '/profile':
       return send(res, 200, await actions.saveProfile(body));
     default:

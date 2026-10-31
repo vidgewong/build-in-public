@@ -102,7 +102,7 @@ async function main() {
 
     console.log('\n\x1b[1m规则\x1b[0m');
     const created = await call('POST', '/api/admin/rule', {
-      create: true, id: 'test-rule', title: '测试规则', cadence: 'daily', amount: 50,
+      create: true, id: 'test-rule', title: '测试规则', cadence: 'daily', amount: 50, startDate: '2026-09-01',
     });
     eq('新建规则', created.status, 200);
     eq('规则字段正确', created.data?.amount, 50);
@@ -184,10 +184,32 @@ async function main() {
     eq('被删的图文件也清掉了', (await fetch(`${BASE}/api/media/${up2.data.key}`)).status, 404);
     eq('最后一张不能删',
       (await call('POST', '/api/admin/claim/proof/remove', { id: cid, key: up1.data.key })).status, 400);
-    eq('标豁免日', (await call('POST', '/api/admin/exemption', { date: '2026-10-04', reason: '出差' })).data?.added, true);
-    eq('重复豁免被拒', (await call('POST', '/api/admin/exemption', { date: '2026-10-04' })).status, 400);
-    eq('撤销豁免',
-      (await call('POST', '/api/admin/exemption', { date: '2026-10-04', remove: true })).data?.removed, true);
+
+    console.log('\n\x1b[1m豁免赔付\x1b[0m');
+    const w1 = await call('POST', '/api/admin/waiver', { rule: 'test-rule', date: '2026-10-10', reason: '生病' });
+    eq('单日豁免成功', w1.data?.added?.length, 1);
+    eq('重复豁免被拒', (await call('POST', '/api/admin/waiver', { rule: 'test-rule', date: '2026-10-10' })).status, 400);
+    eq('已赔付的周期不能豁免',
+      (await call('POST', '/api/admin/waiver', { rule: 'test-rule', date: '2026-10-03' })).status, 400);
+    eq('周期格式不对被拒',
+      (await call('POST', '/api/admin/waiver', { rule: 'test-rule', period: 'nope' })).status, 400);
+    eq('范围反了被拒',
+      (await call('POST', '/api/admin/waiver', { rule: 'test-rule', from: '2026-10-12', to: '2026-10-11' })).status, 400);
+    eq('豁免后不能再记赔付',
+      (await call('POST', '/api/admin/claim', { rule: 'test-rule', date: '2026-10-10', proof: [up1.data.key] })).status, 400);
+    const range = await call('POST', '/api/admin/waiver', {
+      rules: ['test-rule'], from: '2026-10-08', to: '2026-10-12', reason: '国庆后',
+    });
+    eq('范围豁免：跳过已豁免的，其余入库', range.data?.added?.length, 4);
+    eq('范围豁免：说明跳过原因', range.data?.skipped?.[0]?.why, '已经豁免过了');
+    eq('快照里带着豁免赔付',
+      (await call('GET', '/api/admin/snapshot')).data?.calendar?.waivers?.length, 5);
+    eq('取消单个',
+      (await call('POST', '/api/admin/waiver', { rule: 'test-rule', period: '2026-10-10', remove: true })).data?.removed?.length, 1);
+    eq('按范围取消',
+      (await call('POST', '/api/admin/waiver', { rules: ['test-rule'], from: '2026-10-08', to: '2026-10-12', remove: true })).data?.removed?.length, 4);
+    eq('旧的豁免日接口没了',
+      (await call('POST', '/api/admin/exemption', { date: '2026-10-04' })).status, 404);
 
     console.log('\n\x1b[1m指标\x1b[0m');
     eq('新建指标', (await call('POST', '/api/admin/metric', { key: 'weight', value: 60.5, label: '体重', unit: 'kg' })).status, 200);

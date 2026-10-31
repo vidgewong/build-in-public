@@ -15,7 +15,7 @@ const STATUS_TEXT: Record<SlotStatus, string> = {
   open: '没有记录',
   claimed: '已赔付',
   expired: '已过期',
-  exempt: '豁免',
+  waived: '豁免',
   future: '未开始',
   pending: '进行中',
 };
@@ -25,7 +25,7 @@ const LEGEND: { status: SlotStatus; label: string }[] = [
   { status: 'open', label: '缺口 · 可领取' },
   { status: 'claimed', label: '已赔付' },
   { status: 'expired', label: '超期作废' },
-  { status: 'exempt', label: '豁免' },
+  { status: 'waived', label: '豁免' },
   { status: 'pending', label: '进行中' },
 ];
 
@@ -390,7 +390,7 @@ function Tooltip({ tip, rule, currency }: { tip: TipState; rule: Rule; currency:
 
       <div className={`tooltip-status${open ? ' is-open' : ''}`}>
         {STATUS_TEXT[slot.status]}
-        {slot.status === 'exempt' && slot.exemptReason && ` · ${slot.exemptReason}`}
+        {slot.status === 'waived' && slot.waiverReason && ` · ${slot.waiverReason}`}
       </div>
 
       {open && (
@@ -412,6 +412,10 @@ function Tooltip({ tip, rule, currency }: { tip: TipState; rule: Rule; currency:
 
       {slot.status === 'expired' && (
         <div className="tooltip-note">超出 30 天追溯期，这笔钱作废了。</div>
+      )}
+
+      {slot.status === 'waived' && (
+        <div className="tooltip-note">没做到，计入失约；但这一期不赔付。</div>
       )}
 
       {slot.entry?.note && <div className="tooltip-note">{slot.entry.note}</div>}
@@ -489,7 +493,7 @@ function SlotPanel({
             </div>
             <div className={`slot-panel-status is-${slot.status}`}>
               {STATUS_TEXT[slot.status]}
-              {slot.status === 'exempt' && slot.exemptReason && ` · ${slot.exemptReason}`}
+                    {slot.status === 'waived' && slot.waiverReason && ` · ${slot.waiverReason}`}
             </div>
           </div>
           <button type="button" className="slot-panel-close" onClick={onClose} aria-label="关闭">
