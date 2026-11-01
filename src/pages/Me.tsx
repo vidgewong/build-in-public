@@ -1,4 +1,7 @@
 import { useMemo } from 'react';
+import Art from '../components/Art';
+import Strip from '../components/Strip';
+import { ART } from '../lib/art';
 import SubjectPanel, { type Buff } from '../components/SubjectPanel';
 import { useSite } from '../lib/site-context';
 
@@ -27,12 +30,14 @@ export default function Me() {
   }, [summaries, totals, cur]);
 
   return (
-    <section className="section">
-      <div className="shell">
-        <div className="section-head">
-          <span className="section-index">本人</span>
-          <h2 className="section-title">检视</h2>
+    <>
+      <header className="shell page-head">
+        <div className="page-head-main">
+          <h1 className="page-title display">检视</h1>
         </div>
+        <Art piece={ART.hourglass} ratio="4 / 3" />
+      </header>
+      <section className="shell" style={{ paddingBottom: 'var(--sec)' }} aria-label="人物检视">
         <SubjectPanel
           name={profile.name}
           handle={profile.handle}
@@ -40,7 +45,9 @@ export default function Me() {
           buffs={buffs}
           level={totals.level}
         />
-      </div>
-    </section>
+      </section>
+
+      <Strip pieces={[ART.sundial, ART.purse, ART.watch]} label="账本里的旧物" />
+    </>
   );
 }

@@ -75,7 +75,7 @@ export default function RuleBlock({
   const cell = useMemo(() => {
     const cols = coarse ? slots.length : Math.ceil((slots.length + leadingBlanks) / 7);
     const min = coarse ? 26 : narrow ? 11 : 13;
-    const max = coarse ? 56 : narrow ? 16 : 34;
+    const max = coarse ? 88 : narrow ? 20 : 52;
     if (!availWidth || cols === 0) return narrow ? 13 : 22;
     const fit = Math.floor((availWidth - (cols - 1) * gap) / cols);
     return Math.max(min, Math.min(max, fit));
@@ -118,52 +118,57 @@ export default function RuleBlock({
 
   return (
     <article className="rule-block" id={`rule-${rule.id}`} ref={ref}>
-      <header className="rule-head">
-        <div className="rule-title-group">
-          <span className="rule-cadence">
-            {rule.cadence === 'daily' ? 'DAILY · 每天' : rule.cadence === 'weekly' ? 'WEEKLY · 每周' : 'MONTHLY · 每月'}
-          </span>
-          <h3 className="rule-title">{rule.title}</h3>
-        </div>
-        <div className="rule-price">
-          <span className="amount mono">
-            {currency}
-            {rule.amount}
-          </span>
-          <span className="per">违约一次</span>
-        </div>
-      </header>
-
-      {rule.detail && <p className="rule-detail">{rule.detail}</p>}
-
-      <div className="rule-stats mono">
-        <span>
-          守约率 <b>{rate}%</b>
-        </span>
-        <span>
-          已守约 <b>{summary.keptCount}</b> / {summary.settledCount}
-        </span>
-        <span>
-          连续 <b>{summary.streak}</b>（最长 {summary.bestStreak}）
-        </span>
-        {summary.totalDue > 0 && (
-          <span>
-            已赔付 <b>
+      <div className="shell">
+        <header className="rule-head">
+          <h3 className="rule-title display">{rule.title}</h3>
+          <div className="rule-price">
+            <span className="amount num">
               {currency}
-              {summary.totalDue}
-            </b>
-          </span>
-        )}
-        {summary.openCount > 0 && (
-          <span className="danger">
-            缺口{' '}
-            <b>
-              {summary.openCount} 个 · 可领 {currency}
-              {summary.openAmount}
-            </b>
-          </span>
-        )}
-      </div>
+              {rule.amount}
+            </span>
+            <span className="per">违约一次</span>
+          </div>
+          <p className="rule-cad">
+            {rule.cadence === 'daily' ? 'DAILY · 每天' : rule.cadence === 'weekly' ? 'WEEKLY · 每周' : 'MONTHLY · 每月'}
+          </p>
+        </header>
+
+        {rule.detail && <p className="rule-detail">{rule.detail}</p>}
+
+        <div className="rule-stats">
+          <div className="stat">
+            <span className="stat-n num">{rate}%</span>
+            <span className="stat-l">守约率</span>
+          </div>
+          <div className="stat">
+            <span className="stat-n num">
+              {summary.keptCount} / {summary.settledCount}
+            </span>
+            <span className="stat-l">已守约</span>
+          </div>
+          <div className="stat">
+            <span className="stat-n num">{summary.streak}</span>
+            <span className="stat-l">连续（最长 {summary.bestStreak}）</span>
+          </div>
+          {summary.totalDue > 0 && (
+            <div className="stat">
+              <span className="stat-n num">
+                {currency}
+                {summary.totalDue}
+              </span>
+              <span className="stat-l">已赔付</span>
+            </div>
+          )}
+          {summary.openCount > 0 && (
+            <div className="stat is-danger">
+              <span className="stat-n num">
+                {summary.openCount} 个 · 可领 {currency}
+                {summary.openAmount}
+              </span>
+              <span className="stat-l">缺口</span>
+            </div>
+          )}
+        </div>
 
       <div className="rule-body">
         <div className="rule-main" ref={scrollRef}>
@@ -216,7 +221,7 @@ export default function RuleBlock({
           <div className="legend">
             {LEGEND.map((l) => (
               <span className="legend-item" key={l.status}>
-                <i className={`legend-swatch slot is-${l.status}`} style={{ animation: 'none' }} />
+                <i className={`legend-swatch slot is-${l.status}`} />
                 {l.label}
               </span>
             ))}
@@ -231,6 +236,8 @@ export default function RuleBlock({
             onClaimCopy={onClaimCopy}
           />
         </aside>
+      </div>
+
       </div>
 
       {tip && !panel && <Tooltip tip={tip} rule={rule} currency={currency} />}
@@ -265,10 +272,7 @@ function OpenList({
   if (open.length === 0) {
     return (
       <div className="aside-clear">
-        <span className="aside-clear-mark" aria-hidden="true">
-          ✓
-        </span>
-        <p className="aside-clear-title">这条规则目前没有缺口</p>
+        <h3 className="aside-clear-title">这条规则目前没有缺口</h3>
         <p className="aside-clear-note">
           {recentKept
             ? `最近一次记录 ${recentKept.date.replace(/-/g, '/')}。`
@@ -283,7 +287,7 @@ function OpenList({
     <div className="aside-open">
       <div className="aside-head">
         <span className="aside-label">可领取</span>
-        <span className="aside-total mono">
+        <span className="aside-total num">
           {currency}
           {open.length * rule.amount}
         </span>
@@ -292,10 +296,10 @@ function OpenList({
         {open.slice(0, 6).map((s) => (
           <li key={s.period}>
             <button type="button" className="aside-item" onClick={() => onClaimCopy(rule, s)}>
-              <span className="aside-item-date mono">
+              <span className="aside-item-date">
                 {formatPeriod(rule.cadence, s.period)}
               </span>
-              <span className="aside-item-amount mono">
+              <span className="aside-item-amount">
                 {currency}
                 {rule.amount}
               </span>
@@ -305,7 +309,7 @@ function OpenList({
         ))}
       </ul>
       {open.length > 6 && (
-        <p className="aside-more mono">还有 {open.length - 6} 个 · 在左侧矩阵里</p>
+        <p className="aside-more">还有 {open.length - 6} 个 · 在左侧矩阵里</p>
       )}
       {rule.proof && <p className="aside-proof">需要我出示：{rule.proof}</p>}
     </div>
@@ -395,7 +399,7 @@ function Tooltip({ tip, rule, currency }: { tip: TipState; rule: Rule; currency:
 
       {open && (
         <>
-          <div className="tooltip-money mono">
+          <div className="tooltip-money">
             {currency}
             {rule.amount}
           </div>
@@ -487,7 +491,7 @@ function SlotPanel({
       >
         <div className="slot-panel-head">
           <div>
-            <div className="slot-panel-date mono">
+            <div className="slot-panel-date">
               {slot.date.replace(/-/g, '/')}
               {rule.cadence !== 'daily' && ` – ${end.slice(5).replace('-', '/')}`}
             </div>
@@ -497,7 +501,7 @@ function SlotPanel({
             </div>
           </div>
           <button type="button" className="slot-panel-close" onClick={onClose} aria-label="关闭">
-            ✕
+            ×
           </button>
         </div>
 
@@ -548,7 +552,7 @@ function SlotPanel({
                     // noopener 防止新开的页面拿到 window.opener 反向操作本站
                     rel="noreferrer noopener"
                   >
-                    <span className="slot-panel-link-type mono">
+                    <span className="slot-panel-link-type">
                       {MEDIA_LABEL[m.type] ?? m.type}
                     </span>
                     <span className="slot-panel-link-url">{hostOf(m.url)}</span>

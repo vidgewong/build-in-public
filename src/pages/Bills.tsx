@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import Art from '../components/Art';
+import Strip from '../components/Strip';
 import ProofGallery from '../components/ProofGallery';
+import { ART } from '../lib/art';
 import { useSite } from '../lib/site-context';
 
 export default function Bills() {
@@ -9,92 +12,98 @@ export default function Bills() {
 
   const sorted = [...claims].sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
-  // 谁从我这儿拿走的钱最多
   const byClaimant = Object.entries(
     claims.reduce<Record<string, { n: number; sum: number }>>((acc, c) => {
-      const cur = acc[c.claimant] ?? { n: 0, sum: 0 };
-      acc[c.claimant] = { n: cur.n + 1, sum: cur.sum + c.amount };
+      const prev = acc[c.claimant] ?? { n: 0, sum: 0 };
+      acc[c.claimant] = { n: prev.n + 1, sum: prev.sum + c.amount };
       return acc;
     }, {})
   ).sort((a, b) => b[1].sum - a[1].sum);
 
   return (
-    <section className="section">
-      <div className="shell">
-        <div className="section-head">
-          <span className="section-index">账单</span>
-          <h2 className="section-title">已付出去的钱</h2>
+    <>
+      <header className="shell page-head">
+        <div className="page-head-main">
+          <h1 className="page-title display">已付出去的钱</h1>
         </div>
+        <Art piece={ART.ledger} ratio="4 / 5" />
+      </header>
 
-        {claims.length === 0 ? (
-          <div className="empty-state">
-            还没有人领走过钱。这不代表我守住了——也可能只是你们还没发现。
-          </div>
-        ) : (
-          <>
-            <div className="hero-ledger">
-              <div className="ledger-cell">
-                <span className="ledger-label">累计赔付</span>
-                <span className="ledger-value is-gold mono">
+      {claims.length === 0 ? (
+        <div className="shell">
+          <p className="empty">还没有人领走过钱。这不代表我守住了——也可能只是你们还没发现。</p>
+        </div>
+      ) : (
+        <section className="section is-alt" aria-labelledby="board-h">
+          <div className="shell">
+            <div className="figs section-head">
+              <div className="stat" data-reveal>
+                <span className="stat-n num">
                   {cur}
                   {totals.paidAmount}
                 </span>
-                <span className="ledger-hint">{totals.paidCount} 笔</span>
+                <span className="stat-l">累计赔付 · {totals.paidCount} 笔</span>
               </div>
-              <div className="ledger-cell">
-                <span className="ledger-label">领走的人</span>
-                <span className="ledger-value mono">{byClaimant.length}</span>
+              <div className="stat" data-reveal style={{ ['--d' as string]: '80ms' }}>
+                <span className="stat-n num">{byClaimant.length}</span>
+                <span className="stat-l">领走的人</span>
               </div>
-              <div className="ledger-cell">
-                <span className="ledger-label">平均每笔</span>
-                <span className="ledger-value mono">
+              <div className="stat" data-reveal style={{ ['--d' as string]: '160ms' }}>
+                <span className="stat-n num">
                   {cur}
                   {Math.round(totals.paidAmount / Math.max(1, totals.paidCount))}
                 </span>
-                <span className="ledger-hint">单次违约的代价</span>
+                <span className="stat-l">平均每笔 · 单次违约的代价</span>
               </div>
             </div>
 
             {byClaimant.length > 0 && (
-              <div className="bills-board">
-                <span className="bills-board-label">领取榜</span>
-                <ul className="bills-board-list">
+              <>
+                <h2 className="board-title display" id="board-h" data-reveal>
+                  领取榜
+                </h2>
+                <ul className="board">
                   {byClaimant.map(([name, v], i) => (
-                    <li key={name}>
-                      <span className="bills-rank mono">{String(i + 1).padStart(2, '0')}</span>
-                      <span className="bills-name">{name}</span>
-                      <span className="bills-count mono">{v.n} 笔</span>
-                      <span className="bills-sum mono">
+                    <li className="board-row" key={name} data-reveal style={{ ['--d' as string]: `${i * 60}ms` }}>
+                      <span className="board-name">{name}</span>
+                      <span className="board-count">{v.n} 笔</span>
+                      <span className="board-sum num">
                         {cur}
                         {v.sum}
                       </span>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </>
             )}
+          </div>
+        </section>
+      )}
 
-            <table className="claims-table">
+      {claims.length > 0 && (
+        <section className="section" aria-label="逐笔明细">
+          <div className="shell">
+            <table className="claims">
               <thead>
                 <tr>
                   <th>日期</th>
                   <th>领取人</th>
                   <th>事由</th>
-                  <th style={{ textAlign: 'right' }}>金额</th>
-                  <th style={{ textAlign: 'right' }}>证明</th>
+                  <th className="r">金额</th>
+                  <th className="r">证明</th>
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((c) => (
                   <tr key={c.id}>
-                    <td>{c.paidAt.slice(0, 10).replace(/-/g, '/')}</td>
+                    <td className="c-date">{c.paidAt.slice(0, 10).replace(/-/g, '/')}</td>
                     <td className="claimant">{c.claimant}</td>
-                    <td>{c.note ?? c.period}</td>
+                    <td className="c-note">{c.note ?? c.period}</td>
                     <td className="amount">
                       {cur}
                       {c.amount}
                     </td>
-                    <td className="proof-cell">
+                    <td className="proof-cell r">
                       {c.proof?.length ? (
                         <button
                           type="button"
@@ -116,12 +125,13 @@ export default function Bills() {
                 ))}
               </tbody>
             </table>
-          </>
-        )}
-      </div>
+          </div>
+        </section>
+      )}
+      <Strip pieces={[ART.hourglass, ART.sundial, ART.purse]} label="账本里的旧物" />
       {viewing && (
         <ProofGallery title={viewing.title} keys={viewing.keys} onClose={() => setViewing(null)} />
       )}
-    </section>
+    </>
   );
 }

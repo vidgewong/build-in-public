@@ -50,7 +50,7 @@ export function useTheme(): {
     // 让浏览器 UI（地址栏、滚动条）跟着走
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', theme === 'light' ? '#faf8f5' : '#07080a');
+      ?.setAttribute('content', theme === 'light' ? '#ddd6c6' : '#191c15');
   }, [theme]);
 
   const setPref = (p: ThemePref) => {

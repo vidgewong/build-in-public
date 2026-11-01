@@ -30,14 +30,6 @@ export default function SubjectPanel({
   return (
     <div className="subject">
       <div className="subject-stage" ref={stageRef}>
-        <span className="subject-corner tl" />
-        <span className="subject-corner tr" />
-        <span className="subject-corner bl" />
-        <span className="subject-corner br" />
-        <span className="subject-stage-label">
-          {handle} · LV.{level}
-        </span>
-
         <div className="subject-figure">
           <ParallaxFigure
             src="/figure.webp"
@@ -46,18 +38,18 @@ export default function SubjectPanel({
             scale={0.042}
           />
         </div>
-
-        <span className="subject-hint">移动指针检视</span>
+        <span className="subject-hint">移动指针，换个角度看</span>
       </div>
 
       <div className="subject-panel">
+        <h2 className="vh">{handle} · 第 {level} 级</h2>
         {metrics
           .filter((m) => m.visibility !== 'hidden')
           .map((m, i) => (
             <MetricRow key={m.key} metric={m} active={inView} index={i} />
           ))}
 
-        <div className="subject-buffs">
+        <div className="buffs">
           {buffs.map((b) => (
             <span
               key={b.label}
@@ -87,12 +79,12 @@ function MetricRow({ metric, active, index }: { metric: Metric; active: boolean;
         : metric.value;
 
   return (
-    <div className="metric-row">
+    <div className="metric">
       <span className="metric-label" title={metric.hint}>
         {metric.label}
         {metric.hint && <span className="metric-hint">{metric.hint}</span>}
       </span>
-      <span className="metric-value mono">
+      <span className="metric-value num">
         {masked ? (
           <>
             <span className="metric-masked">***</span>

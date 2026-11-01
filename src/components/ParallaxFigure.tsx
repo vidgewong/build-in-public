@@ -124,9 +124,9 @@ function loadImage(src: string) {
   });
 }
 
-/** 读 --gold，转成 0..1 的 rgb */
+/** 读 --rim，转成 0..1 的 rgb */
 function readRim(el: Element): [number, number, number] {
-  const raw = getComputedStyle(el).getPropertyValue('--gold').trim();
+  const raw = getComputedStyle(el).getPropertyValue('--rim').trim();
   const hex = raw.replace('#', '');
   if (hex.length !== 6) return [0.83, 0.66, 0.31];
   const v = parseInt(hex, 16);

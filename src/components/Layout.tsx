@@ -4,6 +4,8 @@ import { useSnapshot } from '../lib/api';
 import { buildSiteState } from '../lib/data';
 import { formatPeriod, type Rule, type Slot } from '../lib/domain';
 import { useToast } from '../lib/hooks';
+import { FOOT_CREDIT } from '../lib/art';
+import { useReveal } from '../lib/reveal';
 import { SiteContext } from '../lib/site-context';
 import ThemeToggle from './ThemeToggle';
 
@@ -96,26 +98,27 @@ export default function Layout() {
     return { state, currency: cur, copyClaim, copyAllClaims };
   }, [state, showToast]);
 
-  // 当前敞口放在导航栏右侧常驻，每一页都能看到还欠多少
   const cur = state?.currency ?? '¥';
   const openAmount = state?.totals.openAmount ?? 0;
   const openCount = state?.totals.openCount ?? 0;
 
+  useReveal(`${pathname}:${state ? 1 : 0}`);
+
   return (
     <>
-      <nav className="topnav">
-        <div className="shell topnav-inner">
-          <NavLink to="/" className="topnav-brand">
+      <nav className="nav">
+        <div className="shell nav-in">
+          <NavLink to="/" className="nav-brand">
             BUILD IN PUBLIC
           </NavLink>
 
-          <ul className="topnav-links">
+          <ul className="nav-links">
             {NAV.map((n) => (
               <li key={n.to}>
                 <NavLink
                   to={n.to}
                   end={n.to === '/'}
-                  className={({ isActive }) => `topnav-link${isActive ? ' is-active' : ''}`}
+                  className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`}
                 >
                   {n.label}
                 </NavLink>
@@ -123,25 +126,19 @@ export default function Layout() {
             ))}
           </ul>
 
-          <div className="topnav-right">
-            <ThemeToggle />
+          <div className="nav-tools">
             <NavLink
               to="/"
-              className={`topnav-open mono${openAmount > 0 ? ' is-open' : ''}`}
+              className={`nav-open${openAmount > 0 ? ' is-open' : ''}`}
               aria-label={
                 openAmount > 0 ? `当前可领 ${cur}${openAmount}，${openCount} 个缺口` : '当前没有缺口'
               }
             >
-              {openAmount > 0 ? (
-                <>
-                  <span className="topnav-open-dot" aria-hidden="true" />
-                  {cur}
-                  {openAmount}
-                </>
-              ) : (
-                <>{cur}0</>
-              )}
+              {openAmount > 0 && <span className="nav-dot" aria-hidden="true" />}
+              {cur}
+              {openAmount}
             </NavLink>
+            <ThemeToggle />
           </div>
         </div>
       </nav>
@@ -152,13 +149,30 @@ export default function Layout() {
             <Outlet />
           </main>
 
-          <footer className="footer">
-            <div className="shell footer-inner">
-              <span>{ctx.state.profile.handle}</span>
-              <span>{ctx.state.profile.contact}</span>
-              <span className="footer-spacer">
-                更新于 {ctx.state.today.replace(/-/g, '.')}
-              </span>
+          <footer className="foot">
+            <div className="shell">
+              <div className="foot-top">
+                <div className="foot-nav">
+                  {NAV.map((n) => (
+                    <NavLink key={n.to} to={n.to} end={n.to === '/'}>
+                      {n.label}
+                    </NavLink>
+                  ))}
+                </div>
+                <div className="foot-meta">
+                  <span>{ctx.state.profile.handle}</span>
+                  <span>{ctx.state.profile.contact}</span>
+                  <span>更新于 {ctx.state.today.replace(/-/g, '.')}</span>
+                </div>
+              </div>
+            </div>
+            <div className="foot-mark" aria-hidden="true">
+              {ctx.state.profile.name}
+            </div>
+            <div className="foot-credit">
+              <div className="shell">
+                <span>{FOOT_CREDIT}</span>
+              </div>
             </div>
           </footer>
         </SiteContext.Provider>
@@ -178,7 +192,7 @@ function Boot({ snapshot }: { snapshot: ReturnType<typeof useSnapshot> }) {
   if (snapshot.status === 'error') {
     return (
       <div className="boot">
-        <span className="boot-label mono">连不上账本</span>
+        <h1 className="boot-label display">连不上账本</h1>
         <p className="boot-note">{snapshot.error}</p>
         <p className="boot-note">
           数据服务没在跑。本地请先 <code>npm run api</code>。
@@ -189,10 +203,7 @@ function Boot({ snapshot }: { snapshot: ReturnType<typeof useSnapshot> }) {
 
   return (
     <div className="boot">
-      <span className="boot-label mono">
-        <span className="boot-dot" aria-hidden="true" />
-        正在结算
-      </span>
+      <h1 className="boot-label display">正在结算</h1>
       <p className="boot-note">把账本拉出来给你看。</p>
     </div>
   );

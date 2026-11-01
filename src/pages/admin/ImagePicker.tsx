@@ -56,7 +56,7 @@ export default function ImagePicker({
             aria-label="移除这张图"
             onClick={() => (onRemove ? onRemove(k) : onChange(keys.filter((x) => x !== k)))}
           >
-            ✕
+            ×
           </button>
         </div>
       ))}

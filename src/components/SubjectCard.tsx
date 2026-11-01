@@ -3,11 +3,6 @@ import type { Metric } from '../lib/data';
 import { useCountUp, useInView } from '../lib/hooks';
 import ParallaxFigure from './ParallaxFigure';
 
-/**
- * 首页 hero 右侧的小号检视卡。
- * 和 /me 的 SubjectPanel 是同一套视觉语言，但只取前几项指标，
- * 视差幅度也压得更小——这里是预告，不是主角。
- */
 export default function SubjectCard({
   name,
   handle,
@@ -33,9 +28,9 @@ export default function SubjectCard({
       </div>
 
       <div className="subject-card-side">
-        <div className="subject-card-head">
-          <span className="subject-card-label mono">{handle} · LV.{level}</span>
-        </div>
+        <h2 className="h2 display" id="subject-h">
+          {handle} · LV.{level}
+        </h2>
 
         <div className="subject-card-metrics">
           {metrics.map((m, i) => (
@@ -43,7 +38,9 @@ export default function SubjectCard({
           ))}
         </div>
 
-        <span className="subject-card-cta mono">完整检视 →</span>
+        <span className="link">
+          完整检视 <span className="btn-arrow" aria-hidden="true">→</span>
+        </span>
       </div>
     </Link>
   );
@@ -64,16 +61,14 @@ function MiniMetric({ metric, active, index }: { metric: Metric; active: boolean
         : metric.value;
 
   return (
-    <div className="subject-card-metric">
-      <span className="subject-card-metric-label">
+    <div className="metric">
+      <span className="metric-label">
         {metric.label}
-        {metric.hint && <span className="subject-card-metric-hint">{metric.hint}</span>}
+        {metric.hint && <span className="metric-hint">{metric.hint}</span>}
       </span>
-      <span className={`subject-card-metric-value mono${masked ? ' is-masked' : ''}`}>
+      <span className={`metric-value num${masked ? ' metric-masked' : ''}`}>
         {display}
-        {!masked && metric.unit && (
-          <span className="subject-card-metric-unit">{metric.unit}</span>
-        )}
+        {!masked && metric.unit && <span className="metric-unit">{metric.unit}</span>}
       </span>
     </div>
   );

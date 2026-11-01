@@ -37,7 +37,7 @@ export default function ProofGallery({
         <div className="proof-head">
           <span className="proof-title">{title}</span>
           <button type="button" className="slot-panel-close" onClick={onClose} aria-label="关闭">
-            ✕
+            ×
           </button>
         </div>
         <div className="proof-body">
