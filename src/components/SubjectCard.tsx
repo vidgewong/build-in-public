@@ -66,10 +66,8 @@ function MiniMetric({ metric, active, index }: { metric: Metric; active: boolean
         {metric.label}
         {metric.hint && <span className="metric-hint">{metric.hint}</span>}
       </span>
-      <span className={`metric-value num${masked ? ' metric-masked' : ''}`}>
-        {display}
-        {!masked && metric.unit && <span className="metric-unit">{metric.unit}</span>}
-      </span>
+      <span className={`metric-value num${masked ? ' metric-masked' : ''}`}>{display}</span>
+      <span className="metric-unit">{!masked && metric.unit}</span>
     </div>
   );
 }

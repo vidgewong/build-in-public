@@ -682,14 +682,14 @@ a.stat:hover { transform: translateX(8px); }
 .subject-hint { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; font-size: 16px; color: #5a5850; }
 
 .subject-panel { grid-column: 8 / 13; display: flex; flex-direction: column; justify-content: center; gap: clamp(24px, 3vw, 40px); }
-.metric { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 20px; transition: transform 0.4s var(--ease); }
+.metric { display: grid; grid-template-columns: 1fr auto 2.6em; align-items: baseline; column-gap: 8px; row-gap: 4px; font-size: 19px; transition: transform 0.4s var(--ease); }
 .metric:hover { transform: translateX(8px); }
 .metric-label { font-size: 19px; font-weight: 500; }
 .metric-hint { display: block; font-size: 19px; color: var(--ink-3); font-weight: 400; }
-.metric-value { font-size: clamp(36px, 3.8vw, 60px); text-align: right; }
-.metric-unit { font-size: 19px; margin-left: 6px; font-family: var(--f-sans); font-weight: 400; color: var(--ink-2); }
+.metric-value { font-size: clamp(36px, 3.8vw, 60px); text-align: right; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }
+.metric-unit { font-size: 1em; text-align: left; white-space: nowrap; font-family: var(--f-sans); font-weight: 400; color: var(--ink-2); }
 .metric-masked { color: var(--ink-3); }
-.metric-masked-hint { display: block; font-family: var(--f-sans); font-size: 19px; color: var(--ink-3); letter-spacing: 0; }
+.metric-masked-hint { grid-column: 2 / 4; justify-self: end; font-family: var(--f-sans); font-size: 19px; color: var(--ink-3); letter-spacing: 0; }
 
 .buffs { display: grid; gap: 8px; margin-top: 8px; font-size: 18px; }
 .buff { display: flex; align-items: center; gap: 12px; }
@@ -1024,6 +1024,7 @@ a.stat:hover { transform: translateX(8px); }
 .hero .subject-card-metrics { grid-template-columns: 1fr 1fr; gap: 14px var(--g); }
 .hero .subject-card-side .metric-value { font-size: 28px; }
 .hero .subject-card-side .metric-label { font-size: 17px; }
+.hero .subject-card-side .metric { font-size: 17px; }
 .hero .subject-card-side .h2 { font-size: clamp(30px, 2.6vw, 40px); }
 .hero .subject-card-fig { max-width: 100%; }
 .subject-card-side .h2 { font-size: clamp(36px, 4.4vw, 68px); }

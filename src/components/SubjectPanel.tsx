@@ -84,19 +84,9 @@ function MetricRow({ metric, active, index }: { metric: Metric; active: boolean;
         {metric.label}
         {metric.hint && <span className="metric-hint">{metric.hint}</span>}
       </span>
-      <span className="metric-value num">
-        {masked ? (
-          <>
-            <span className="metric-masked">***</span>
-            <span className="metric-masked-hint">{metric.maskedHint ?? '暂不可见'}</span>
-          </>
-        ) : (
-          <>
-            {display}
-            {metric.unit && <span className="metric-unit">{metric.unit}</span>}
-          </>
-        )}
-      </span>
+      <span className={`metric-value num${masked ? ' metric-masked' : ''}`}>{masked ? '***' : display}</span>
+      <span className="metric-unit">{!masked && metric.unit}</span>
+      {masked && <span className="metric-masked-hint">{metric.maskedHint ?? '暂不可见'}</span>}
     </div>
   );
 }
