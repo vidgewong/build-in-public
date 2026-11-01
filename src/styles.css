@@ -1054,13 +1054,5 @@ a.stat:hover { transform: translateX(8px); }
 }
 
 @media (max-width: 900px) {
-  .hero .subject-card { grid-column: 1; grid-row: 3; margin-top: 24px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; column-gap: var(--g); }
-  .hero .subject-card-fig { grid-column: 1; }
-  .hero .subject-card-side { grid-column: 2; }
-  .hero .subject-card-metrics { grid-template-columns: 1fr; }
-}
-@media (max-width: 520px) {
-  .hero .subject-card { grid-template-columns: minmax(0, 1fr); }
-  .hero .subject-card-fig, .hero .subject-card-side { grid-column: 1; }
-  .hero .subject-card-fig { aspect-ratio: 4 / 5; }
+  .hero .subject-card { display: none; }
 }
