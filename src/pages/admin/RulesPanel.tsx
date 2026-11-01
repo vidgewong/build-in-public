@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi, type RuleInput } from '../../lib/admin-api';
 import { todayKey, type Rule } from '../../lib/domain';
+import { MasterDetail } from './Workspace';
 
 const CADENCES = [
   { value: 'daily', label: '每天' },
@@ -15,49 +16,39 @@ const TYPES = [
   { value: 'violation', label: '违约：做了就赔' },
 ];
 
-/** 约定面板：新建、改、启停、删。删除是级联的，所以确认框写清楚会连带删掉什么。 */
+/** 约定面板：左边是全部约定，右边编辑。删除是级联的，所以确认框写清楚会连带删掉什么。 */
 export default function RulesPanel({ snap, run }: PanelProps) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  /** 'new' = 新建；规则 id = 编辑；null = 没在编辑 */
+  const [sel, setSel] = useState<string | null>(null);
 
   const rules = [...snap.rules].sort((a, b) => {
     if (a.active !== b.active) return a.active ? -1 : 1;
     return (a.order ?? 0) - (b.order ?? 0);
   });
+  const current = sel && sel !== 'new' ? rules.find((r) => r.id === sel) : undefined;
 
   return (
-    <>
-      <section className="admin-section">
-        <div className="admin-section-head">
-          <h2 className="admin-h2">
-            共 <span className="mono">{rules.length}</span> 条
-          </h2>
-          <button
-            type="button"
-            className="admin-btn is-primary is-small"
-            onClick={() => { setCreating(!creating); setEditing(null); }}
-          >
-            {creating ? '收起' : '+ 新建'}
-          </button>
-        </div>
-
-        {creating && (
-          <RuleForm
-            mode="create"
-            onCancel={() => setCreating(false)}
-            onSubmit={async (patch) => {
-              const okay = await run(() => adminApi.createRule(patch as RuleInput), '已新建');
-              if (okay) setCreating(false);
-            }}
-          />
-        )}
-      </section>
-
-      <section className="admin-section">
-        <ul className="admin-list">
+    <MasterDetail
+      title="约定"
+      stats={(() => {
+        const on = rules.filter((r) => r.active).length;
+        return on === rules.length ? (
+          <span className="stat"><b className="mono">{on}</b> 条约定</span>
+        ) : (
+          <span className="stat"><b className="mono">{on}</b> 条生效 · {rules.length - on} 条已停</span>
+        );
+      })()}
+      listTitle="全部约定"
+      listTools={
+        <button type="button" className="admin-btn is-primary is-small" onClick={() => setSel('new')}>
+          + 新建
+        </button>
+      }
+      list={
+        <ul className="lrows">
           {rules.map((r) => (
-            <li className={`admin-row${r.active ? '' : ' is-off'}`} key={r.id}>
-              <div className="admin-row-main">
+            <li className={`admin-row is-pick${r.active ? '' : ' is-off'}${sel === r.id ? ' is-sel' : ''}`} key={r.id}>
+              <button type="button" className="admin-row-main row-hit" onClick={() => setSel(r.id)}>
                 <span className="admin-row-title">
                   {r.title}
                   {!r.active && <span className="admin-tag">已停用</span>}
@@ -66,15 +57,8 @@ export default function RulesPanel({ snap, run }: PanelProps) {
                   {r.id} · {CADENCES.find((c) => c.value === r.cadence)?.label ?? r.cadence} · ¥{r.amount} ·{' '}
                   {r.type === 'checkin' ? '打卡' : '违约'}
                 </span>
-              </div>
+              </button>
               <div className="admin-row-actions">
-                <button
-                  type="button"
-                  className="admin-btn is-small"
-                  onClick={() => { setEditing(editing === r.id ? null : r.id); setCreating(false); }}
-                >
-                  {editing === r.id ? '收起' : '改'}
-                </button>
                 <button
                   type="button"
                   className="admin-btn is-small"
@@ -89,29 +73,46 @@ export default function RulesPanel({ snap, run }: PanelProps) {
                     const n = snap.entries.filter((e) => e.ruleId === r.id).length;
                     const c = snap.claims.filter((x) => x.ruleId === r.id).length;
                     if (!confirm(`删除「${r.title}」？\n会连带删掉 ${n} 条打卡、${c} 笔赔付，且无法撤销。`)) return;
+                    if (sel === r.id) setSel(null);
                     void run(() => adminApi.deleteRule(r.id), '已删除');
                   }}
                 >
                   删
                 </button>
               </div>
-
-              {editing === r.id && (
-                <RuleForm
-                  mode="edit"
-                  rule={r}
-                  onCancel={() => setEditing(null)}
-                  onSubmit={async (patch) => {
-                    const okay = await run(() => adminApi.updateRule({ ...patch, id: r.id }), '已保存');
-                    if (okay) setEditing(null);
-                  }}
-                />
-              )}
             </li>
           ))}
         </ul>
-      </section>
-    </>
+      }
+      open={sel === 'new' || !!current}
+      onClose={() => setSel(null)}
+      empty="选一条约定来编辑，或新建一条。"
+      detailTitle={sel === 'new' ? '新建约定' : current?.title ?? ''}
+      detail={
+        sel === 'new' ? (
+          <RuleForm
+            key="new"
+            mode="create"
+            onCancel={() => setSel(null)}
+            onSubmit={async (patch) => {
+              const okay = await run(() => adminApi.createRule(patch as RuleInput), '已新建');
+              if (okay) setSel(null);
+            }}
+          />
+        ) : current ? (
+          <RuleForm
+            key={current.id}
+            mode="edit"
+            rule={current}
+            onCancel={() => setSel(null)}
+            onSubmit={async (patch) => {
+              const okay = await run(() => adminApi.updateRule({ ...patch, id: current.id }), '已保存');
+              if (okay) setSel(null);
+            }}
+          />
+        ) : null
+      }
+    />
   );
 }
 

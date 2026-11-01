@@ -48,13 +48,14 @@ export default function SecurityPanel({
   };
 
   return (
-    <section className="admin-section">
-      <h2 className="admin-h2">
+    <div className="ws is-solo">
+    <section className="ws-solo">
+      <h1 className="ws-title">
         登录密码{' '}
         <span className={`admin-pw-state mono${custom ? ' is-on' : ''}`}>
           {custom === null ? '…' : custom ? '已设置' : '未设置'}
         </span>
-      </h2>
+      </h1>
       <p className="admin-hint">
         初始码永远有效，是兜底入口，这里改不了它。设了登录密码之后，两者任一都能登录。
         设置或移除时，所有设备上现有的登录都会失效，当前设备会自动保持登录。
@@ -129,5 +130,6 @@ export default function SecurityPanel({
         </div>
       </div>
     </section>
+    </div>
   );
 }

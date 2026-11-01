@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
 import type { Metric } from '../../lib/data';
+import { MasterDetail } from './Workspace';
 
 const VISIBILITIES = [
   { value: 'public', label: '公开' },
@@ -10,43 +11,30 @@ const VISIBILITIES = [
 ];
 
 /**
- * 指标面板。
+ * 指标面板：左边全部指标，右边编辑。
  * 注意：数值型每次保存都会往 history 里压一条，所以这里不做「批量保存全部」——
  * 那会给没改过的指标凭空造出一堆重复历史点。只能一条条存。
  */
 export default function MetricsPanel({ snap, run }: PanelProps) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  /** 'new' = 新建；指标 key = 编辑；null = 没在编辑 */
+  const [sel, setSel] = useState<string | null>(null);
+  const current = sel && sel !== 'new' ? snap.metrics.find((m) => m.key === sel) : undefined;
 
   return (
-    <>
-      <section className="admin-section">
-        <div className="admin-section-head">
-          <h2 className="admin-h2">
-            共 <span className="mono">{snap.metrics.length}</span> 项
-          </h2>
-          <button type="button" className="admin-btn is-primary is-small" onClick={() => setCreating(!creating)}>
-            {creating ? '收起' : '+ 新建'}
-          </button>
-        </div>
-
-        {creating && (
-          <MetricForm
-            mode="create"
-            onCancel={() => setCreating(false)}
-            onSubmit={async (body) => {
-              const okay = await run(() => adminApi.saveMetric(body), '已新建');
-              if (okay) setCreating(false);
-            }}
-          />
-        )}
-      </section>
-
-      <section className="admin-section">
-        <ul className="admin-list">
+    <MasterDetail
+      title="指标"
+      stats={<span className="stat"><b className="mono">{snap.metrics.length}</b> 项</span>}
+      listTitle="全部指标"
+      listTools={
+        <button type="button" className="admin-btn is-primary is-small" onClick={() => setSel('new')}>
+          + 新建
+        </button>
+      }
+      list={
+        <ul className="lrows">
           {snap.metrics.map((m) => (
-            <li className="admin-row" key={m.key}>
-              <div className="admin-row-main">
+            <li className={`admin-row is-pick${sel === m.key ? ' is-sel' : ''}`} key={m.key}>
+              <button type="button" className="admin-row-main row-hit" onClick={() => setSel(m.key)}>
                 <span className="admin-row-title">
                   {m.label}
                   {m.visibility !== 'public' && (
@@ -58,43 +46,53 @@ export default function MetricsPanel({ snap, run }: PanelProps) {
                   {m.target != null ? ` · 目标 ${m.target}` : ''}
                   {m.history?.length ? ` · ${m.history.length} 个历史点` : ''}
                 </span>
-              </div>
+              </button>
               <div className="admin-row-actions">
-                <button
-                  type="button"
-                  className="admin-btn is-small"
-                  onClick={() => setEditing(editing === m.key ? null : m.key)}
-                >
-                  {editing === m.key ? '收起' : '改'}
-                </button>
                 <button
                   type="button"
                   className="admin-btn is-danger is-small"
                   onClick={() => {
                     if (!confirm(`删除指标「${m.label}」？历史数据会一起没有。`)) return;
+                    if (sel === m.key) setSel(null);
                     void run(() => adminApi.deleteMetric(m.key), '已删除');
                   }}
                 >
                   删
                 </button>
               </div>
-
-              {editing === m.key && (
-                <MetricForm
-                  mode="edit"
-                  metric={m}
-                  onCancel={() => setEditing(null)}
-                  onSubmit={async (body) => {
-                    const okay = await run(() => adminApi.saveMetric(body), '已保存');
-                    if (okay) setEditing(null);
-                  }}
-                />
-              )}
             </li>
           ))}
         </ul>
-      </section>
-    </>
+      }
+      open={sel === 'new' || !!current}
+      onClose={() => setSel(null)}
+      empty="选一项指标来编辑，或新建一项。"
+      detailTitle={sel === 'new' ? '新建指标' : current?.label ?? ''}
+      detail={
+        sel === 'new' ? (
+          <MetricForm
+            key="new"
+            mode="create"
+            onCancel={() => setSel(null)}
+            onSubmit={async (body) => {
+              const okay = await run(() => adminApi.saveMetric(body), '已新建');
+              if (okay) setSel(null);
+            }}
+          />
+        ) : current ? (
+          <MetricForm
+            key={current.key}
+            mode="edit"
+            metric={current}
+            onCancel={() => setSel(null)}
+            onSubmit={async (body) => {
+              const okay = await run(() => adminApi.saveMetric(body), '已保存');
+              if (okay) setSel(null);
+            }}
+          />
+        ) : null
+      }
+    />
   );
 }
 

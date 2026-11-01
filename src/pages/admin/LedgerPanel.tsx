@@ -3,138 +3,176 @@ import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
 import { formatPeriod, periodKeyFor, periodsInRange, periodStart, todayKey } from '../../lib/domain';
 import ImagePicker from './ImagePicker';
-import Pager, { usePaged } from './Pager';
+import { MonthGroups, RuleFilter, Workspace } from './Workspace';
 
 /**
- * 赔付与豁免赔付。
+ * 赔付 / 豁免工作台。
+ * 左边在「记赔付」和「豁免」之间切，右边是对应的记录——两份记录各自独立，
+ * 不再需要翻完一长串赔付才能找到豁免。
  * 赔付是「朋友在微信上抓到我违约、我付了钱」之后的记账，所以默认日期是今天，
  * 但可以往回改——抓到和付钱之间经常隔一天。
  */
 export default function LedgerPanel({ snap, run, notify }: PanelProps) {
-  const sortedClaims = useMemo(
-    () => [...snap.claims].sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1)),
-    [snap.claims]
+  const [claimFilter, setClaimFilter] = useState('');
+  const [waiverFilter, setWaiverFilter] = useState('');
+
+  const claims = useMemo(
+    () =>
+      [...snap.claims]
+        .filter((c) => !claimFilter || c.ruleId === claimFilter)
+        .sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1)),
+    [snap.claims, claimFilter]
   );
-  const { rows: claimRows, pager } = usePaged(sortedClaims);
+  const total = snap.claims.reduce((n, c) => n + (c.amount ?? 0), 0);
+
+  const ruleOf = (id: string) => snap.rules.find((r) => r.id === id);
+  const waiverDate = (w: { ruleId: string; period: string }) => {
+    const r = ruleOf(w.ruleId);
+    return r ? periodStart(r.cadence, w.period) : w.period.slice(0, 7) + '-01';
+  };
+  const allWaivers = snap.calendar.waivers ?? [];
   const waivers = useMemo(
-    () => [...(snap.calendar.waivers ?? [])].sort((a, b) => (a.period < b.period ? 1 : a.period > b.period ? -1 : 0)),
-    [snap.calendar.waivers]
+    () =>
+      allWaivers
+        .filter((w) => !waiverFilter || w.ruleId === waiverFilter)
+        .map((w) => ({ ...w, date: waiverDate(w) }))
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allWaivers, waiverFilter, snap.rules]
   );
-  const { rows: waiverRows, pager: waiverPager } = usePaged(waivers);
+
+  const claimList =
+    claims.length === 0 ? (
+      <p className="ws-hint">{claimFilter ? '这条约定还没有赔付。' : '一笔都还没赔出去。'}</p>
+    ) : (
+      <MonthGroups
+        items={claims}
+        dateOf={(c) => c.paidAt}
+        render={(c) => {
+          const rule = ruleOf(c.ruleId);
+          return (
+            <li className="admin-row" key={c.id}>
+              <div className="admin-row-main">
+                <span className="admin-row-title">
+                  {rule?.title ?? c.ruleId} <span className="mono">¥{c.amount}</span>
+                </span>
+                <span className="admin-row-sub mono">
+                  {c.claimant} · {rule ? formatPeriod(rule.cadence, c.period) : c.period} · 付于 {c.paidAt.slice(0, 10)}
+                  {c.note ? ` · ${c.note}` : ''}
+                </span>
+                {!c.proof?.length && <span className="admin-badge-warn mono">缺图片证明，请补上</span>}
+                <ImagePicker
+                  keys={(c.proof ?? []).map((p) => p.key)}
+                  onError={(m) => notify(m, true)}
+                  onChange={(next) => {
+                    const have = new Set((c.proof ?? []).map((p) => p.key));
+                    const fresh = next.filter((k) => !have.has(k));
+                    if (fresh.length) void run(() => adminApi.addClaimProof(c.id, fresh), '证明已补上');
+                  }}
+                  onRemove={(key) => {
+                    if (!confirm('删除这张证明图？')) return;
+                    void run(() => adminApi.removeClaimProof(c.id, key), '已删除这张图');
+                  }}
+                />
+              </div>
+              <div className="admin-row-actions">
+                <button
+                  type="button"
+                  className="admin-btn is-danger is-small"
+                  onClick={() => {
+                    if (!confirm(`删除「${rule?.title ?? c.ruleId}」¥${c.amount} 这笔赔付？`)) return;
+                    void run(() => adminApi.deleteClaim(c.id), '已删除');
+                  }}
+                >
+                  删
+                </button>
+              </div>
+            </li>
+          );
+        }}
+      />
+    );
+
+  const waiverList =
+    waivers.length === 0 ? (
+      <p className="ws-hint">{waiverFilter ? '这条约定没有豁免。' : '还没有豁免。'}</p>
+    ) : (
+      <MonthGroups
+        items={waivers}
+        dateOf={(w) => w.date}
+        render={(w) => {
+          const rule = ruleOf(w.ruleId);
+          return (
+            <li className="admin-row" key={`${w.ruleId}:${w.period}`}>
+              <div className="admin-row-main">
+                <span className="admin-row-title">{rule?.title ?? w.ruleId}</span>
+                <span className="admin-row-sub mono">
+                  {rule ? formatPeriod(rule.cadence, w.period) : w.period} · {w.reason}
+                </span>
+              </div>
+              <div className="admin-row-actions">
+                <button
+                  type="button"
+                  className="admin-btn is-danger is-small"
+                  onClick={() =>
+                    void run(() => adminApi.setWaiver({ rule: w.ruleId, period: w.period, remove: true }), '已取消豁免')
+                  }
+                >
+                  取消
+                </button>
+              </div>
+            </li>
+          );
+        }}
+      />
+    );
 
   return (
-    <>
-      <section className="admin-section">
-        <h2 className="admin-h2">记一笔赔付</h2>
-        <ClaimForm snap={snap} run={run} notify={notify} />
-      </section>
-
-      <section className="admin-section">
-        <h2 className="admin-h2">
-          已赔 <span className="mono">{snap.claims.length}</span> 笔 · 合计 ¥
-          <span className="mono">{snap.claims.reduce((s, c) => s + (c.amount ?? 0), 0)}</span>
-        </h2>
-        {snap.claims.length === 0 ? (
-          <p className="admin-empty">一笔都还没赔出去。</p>
-        ) : (
-          <ul className="admin-list">
-            {claimRows.map((c) => {
-              const rule = snap.rules.find((r) => r.id === c.ruleId);
-              return (
-                <li className="admin-row" key={c.id}>
-                  <div className="admin-row-main">
-                    <span className="admin-row-title">
-                      {rule?.title ?? c.ruleId} <span className="mono">¥{c.amount}</span>
-                    </span>
-                    <span className="admin-row-sub mono">
-                      {c.claimant} · {rule ? formatPeriod(rule.cadence, c.period) : c.period} · 付于 {c.paidAt.slice(0, 10)}
-                      {c.note ? ` · ${c.note}` : ''}
-                    </span>
-                    {!c.proof?.length && (
-                      <span className="admin-badge-warn mono">缺图片证明，请补上</span>
-                    )}
-                    <ImagePicker
-                      keys={(c.proof ?? []).map((p) => p.key)}
-                      onError={(m) => notify(m, true)}
-                      // 补图：选完即上传，立刻挂到这笔赔付上
-                      onChange={(next) => {
-                        const have = new Set((c.proof ?? []).map((p) => p.key));
-                        const fresh = next.filter((k) => !have.has(k));
-                        if (fresh.length) void run(() => adminApi.addClaimProof(c.id, fresh), '证明已补上');
-                      }}
-                      onRemove={(key) => {
-                        if (!confirm('删除这张证明图？')) return;
-                        void run(() => adminApi.removeClaimProof(c.id, key), '已删除这张图');
-                      }}
-                    />
-                  </div>
-                  <div className="admin-row-actions">
-                    <button
-                      type="button"
-                      className="admin-btn is-danger is-small"
-                      onClick={() => {
-                        if (!confirm(`删除「${rule?.title ?? c.ruleId}」¥${c.amount} 这笔赔付？`)) return;
-                        void run(() => adminApi.deleteClaim(c.id), '已删除');
-                      }}
-                    >
-                      删
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <Pager {...pager} />
-      </section>
-
-      <section className="admin-section">
-        <h2 className="admin-h2">
-          豁免赔付 <span className="mono">{waivers.length}</span> 期
-        </h2>
-        <p className="admin-hint">
-          生病、节假日等确实做不到的周期：不赔钱，但<b>仍然算失约</b>——计入总次数，守约率照常下降。
-        </p>
-        <WaiverForm snap={snap} run={run} />
-
-        {waivers.length === 0 ? (
-          <p className="admin-empty">还没有豁免赔付。</p>
-        ) : (
-          <>
-            <ul className="admin-list">
-              {waiverRows.map((w) => {
-                const rule = snap.rules.find((r) => r.id === w.ruleId);
-                return (
-                  <li className="admin-row" key={`${w.ruleId}:${w.period}`}>
-                    <div className="admin-row-main">
-                      <span className="admin-row-title">{rule?.title ?? w.ruleId}</span>
-                      <span className="admin-row-sub mono">
-                        {rule ? formatPeriod(rule.cadence, w.period) : w.period} · {w.reason}
-                      </span>
-                    </div>
-                    <div className="admin-row-actions">
-                      <button
-                        type="button"
-                        className="admin-btn is-danger is-small"
-                        onClick={() =>
-                          void run(
-                            () => adminApi.setWaiver({ rule: w.ruleId, period: w.period, remove: true }),
-                            '已取消豁免赔付'
-                          )
-                        }
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            <Pager {...waiverPager} />
-          </>
-        )}
-      </section>
-    </>
+    <Workspace
+      title="赔付 / 豁免"
+      stats={
+        <span className="stat">
+          已赔 <b className="mono">¥{total}</b> · 豁免 <b className="mono">{allWaivers.length}</b> 期
+        </span>
+      }
+      modes={[
+        {
+          key: 'claim', label: '记赔付', actTitle: '记一笔赔付',
+          act: <ClaimForm snap={snap} run={run} notify={notify} />,
+          listLabel: <>已赔 <span className="mono">{snap.claims.length}</span></>,
+          listTitle: <>已赔 <span className="mono">{snap.claims.length}</span> 笔</>,
+          listTools: (
+            <RuleFilter
+              rules={snap.rules.filter((r) => snap.claims.some((c) => c.ruleId === r.id))}
+              value={claimFilter}
+              onChange={setClaimFilter}
+            />
+          ),
+          list: claimList,
+        },
+        {
+          key: 'waive', label: '去豁免', actTitle: '豁免一段时间',
+          act: (
+            <>
+              <p className="admin-hint ws-lede">
+                生病、节假日等确实做不到的周期：不赔钱，但<b>仍然算失约</b>，计入总次数，守约率照常下降。
+              </p>
+              <WaiverForm snap={snap} run={run} />
+            </>
+          ),
+          listLabel: <>已豁免 <span className="mono">{allWaivers.length}</span></>,
+          listTitle: <>豁免 <span className="mono">{allWaivers.length}</span> 期</>,
+          listTools: (
+            <RuleFilter
+              rules={snap.rules.filter((r) => allWaivers.some((w) => w.ruleId === r.id))}
+              value={waiverFilter}
+              onChange={setWaiverFilter}
+            />
+          ),
+          list: waiverList,
+        },
+      ]}
+    />
   );
 }
 

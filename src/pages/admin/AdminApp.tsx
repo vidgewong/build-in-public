@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi, AuthError, type AdminSnapshot } from '../../lib/admin-api';
+import { todayBoard } from './derive';
 import EntriesPanel from './EntriesPanel';
 import LedgerPanel from './LedgerPanel';
 import Login from './Login';
@@ -89,6 +90,7 @@ export default function AdminApp() {
   }
 
   const panelProps = { snap, run, notify };
+  const owed = snap ? todayBoard(snap).owed.length : 0;
 
   return (
     <div className="admin">
@@ -122,12 +124,13 @@ export default function AdminApp() {
               onClick={() => setTab(t.key)}
             >
               {t.label}
+              {t.key === 'entries' && owed > 0 && <span className="admin-tab-dot mono">{owed}</span>}
             </button>
           ))}
         </nav>
       </header>
 
-      <main className="admin-body">
+      <main className="admin-body" key={tab}>
         {!snap ? (
           <p className="admin-empty">正在加载…</p>
         ) : tab === 'entries' ? (

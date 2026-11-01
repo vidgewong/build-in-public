@@ -2,126 +2,150 @@ import { useMemo, useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi } from '../../lib/admin-api';
 import { formatPeriod, periodKeyFor, todayKey, type Rule } from '../../lib/domain';
-import Pager, { usePaged } from './Pager';
+import { todayBoard } from './derive';
+import { Fold, MonthGroups, RuleFilter, Workspace } from './Workspace';
 
 /**
- * 打卡面板。最常用的一屏——手机上进来就是它。
- * 默认列出今天还没打的卡，点一下就能补；下面是历史记录，可以加证明或删。
+ * 打卡工作台。左边做事（补今天的卡 / 补过去的卡），右边是按月分组的记录。
+ * 桌面两栏同时可见，整页不滚；手机用一条分段在「今天 / 补打卡 / 记录」之间切。
  */
 export default function EntriesPanel({ snap, run }: PanelProps) {
   const [open, setOpen] = useState<string | null>(null);
-  const today = todayKey();
+  const [filter, setFilter] = useState('');
+  const { today, checkinRules, todo, isWaived, owed } = todayBoard(snap);
 
-  const checkinRules = snap.rules.filter((r) => r.active && r.type === 'checkin');
-
-  const pending = checkinRules.filter(
-    (r) => !snap.entries.some((e) => e.ruleId === r.id && e.period === periodKeyFor(r.cadence, today))
+  const groups = GROUPS.map((g) => ({ ...g, rules: todo.filter((r) => r.cadence === g.cadence) })).filter(
+    (g) => g.rules.length > 0
   );
 
-  // 天、周、月的周期不一样，混在一起会分不清「今天要打」还是「这周内打」
-  const groups = GROUPS.map((g) => ({
-    ...g,
-    rules: pending.filter((r) => r.cadence === g.cadence),
-  })).filter((g) => g.rules.length > 0);
-
-  const sorted = useMemo(
-    () => [...snap.entries].sort((a, b) => (a.date < b.date ? 1 : -1)),
-    [snap.entries]
+  const records = useMemo(
+    () =>
+      [...snap.entries]
+        .filter((e) => !filter || e.ruleId === filter)
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [snap.entries, filter]
   );
-  const { rows: recent, pager } = usePaged(sorted);
-
   const ruleOf = (id: string) => snap.rules.find((r) => r.id === id);
 
-  return (
+  const pending = (
     <>
-      <section className="admin-section">
-        <h2 className="admin-h2">
-          还差 <span className="mono">{pending.length}</span> 项
-        </h2>
-
-        {pending.length === 0 ? (
-          <p className="admin-empty">该打的卡都打完了。</p>
-        ) : (
-          groups.map((g) => (
-            <div className="admin-pending-group" key={g.cadence}>
-              <h3 className="admin-h3">
-                {g.label} · 还差 <span className="mono">{g.rules.length}</span> 项
-              </h3>
-              <ul className="admin-pending">
-                {g.rules.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      className={`admin-pending-item${open === r.id ? ' is-open' : ''}`}
-                      onClick={() => setOpen(open === r.id ? null : r.id)}
-                    >
-                      <span className="admin-pending-title">{r.title}</span>
-                      <span className="admin-pending-meta mono">¥{r.amount}</span>
-                    </button>
-                    {open === r.id && (
-                      <CheckForm rule={r} date={today} run={run} onDone={() => setOpen(null)} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-      </section>
-
-      <section className="admin-section">
-        <h2 className="admin-h2">补打卡</h2>
-        <BackfillForm rules={checkinRules} run={run} />
-      </section>
-
-      <section className="admin-section">
-        <h2 className="admin-h2">最近记录</h2>
-        {recent.length === 0 ? (
-          <p className="admin-empty">还没有任何打卡记录。</p>
-        ) : (
-          <ul className="admin-list">
-            {recent.map((e) => {
-              const rule = ruleOf(e.ruleId);
-              return (
-                <li className="admin-row" key={e.id}>
-                  <div className="admin-row-main">
-                    <span className="admin-row-title">{rule?.title ?? e.ruleId}</span>
-                    <span className="admin-row-sub mono">
-                      {rule ? formatPeriod(rule.cadence, e.period) : e.period}
-                      {e.media?.length ? ` · ${e.media.length} 份证明` : ' · 无证明'}
-                      {e.note ? ` · ${e.note}` : ''}
-                    </span>
-                    {e.media && e.media.length > 0 && (
-                      <div className="admin-media">
-                        {e.media.map((m, i) => (
-                          <a key={i} href={m.url} target="_blank" rel="noreferrer" className="admin-media-link mono">
-                            {m.type}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="admin-row-actions">
-                    <AddProofButton entryRule={rule} period={e.period} date={e.date} run={run} />
-                    <button
-                      type="button"
-                      className="admin-btn is-danger is-small"
-                      onClick={() => {
-                        if (!confirm(`删除「${rule?.title ?? e.ruleId}」${e.period} 的记录？`)) return;
-                        void run(() => adminApi.deleteEntry(e.id), '已删除');
-                      }}
-                    >
-                      删
-                    </button>
-                  </div>
+      {todo.length === 0 ? (
+        <p className="ws-hint">该打的卡都打完了。</p>
+      ) : (
+        groups.map((g) => (
+          <div className="pgroup" key={g.cadence}>
+            <h3 className="pgroup-h">
+              {g.label}
+              <span className="mono">{g.rules.filter((r) => !isWaived(r)).length}</span>
+            </h3>
+            <ul className="pending">
+              {g.rules.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    className={`pending-item${open === r.id ? ' is-open' : ''}${isWaived(r) ? ' is-waived' : ''}`}
+                    aria-expanded={open === r.id}
+                    onClick={() => setOpen(open === r.id ? null : r.id)}
+                  >
+                    <span className="pending-title">{r.title}</span>
+                    <span className="pending-meta mono">{isWaived(r) ? '已豁免' : `¥${r.amount}`}</span>
+                  </button>
+                  <Fold open={open === r.id}>
+                    <CheckForm rule={r} date={today} run={run} onDone={() => setOpen(null)} />
+                  </Fold>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-        <Pager {...pager} />
-      </section>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
     </>
+  );
+
+  const list = (
+    <>
+      {records.length === 0 ? (
+        <p className="ws-hint">{filter ? '这条约定还没有打卡记录。' : '还没有任何打卡记录。'}</p>
+      ) : (
+        <MonthGroups
+          items={records}
+          dateOf={(e) => e.date}
+          render={(e) => {
+            const rule = ruleOf(e.ruleId);
+            return (
+              <li className="admin-row" key={e.id}>
+                <div className="admin-row-main">
+                  <span className="admin-row-title">{rule?.title ?? e.ruleId}</span>
+                  <span className="admin-row-sub mono">
+                    {rule ? formatPeriod(rule.cadence, e.period) : e.period}
+                    {e.media?.length ? ` · ${e.media.length} 份证明` : ' · 无证明'}
+                    {e.note ? ` · ${e.note}` : ''}
+                  </span>
+                  {e.media && e.media.length > 0 && (
+                    <div className="admin-media">
+                      {e.media.map((m, i) => (
+                        <a key={i} href={m.url} target="_blank" rel="noreferrer" className="admin-media-link mono">
+                          {m.type}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="admin-row-actions">
+                  <AddProofButton entryRule={rule} period={e.period} date={e.date} run={run} />
+                  <button
+                    type="button"
+                    className="admin-btn is-danger is-small"
+                    onClick={() => {
+                      if (!confirm(`删除「${rule?.title ?? e.ruleId}」${e.period} 的记录？`)) return;
+                      void run(() => adminApi.deleteEntry(e.id), '已删除');
+                    }}
+                  >
+                    删
+                  </button>
+                </div>
+              </li>
+            );
+          }}
+        />
+      )}
+    </>
+  );
+
+  const tools = (
+    <RuleFilter
+      rules={snap.rules.filter((r) => r.type === 'checkin')}
+      value={filter}
+      onChange={setFilter}
+    />
+  );
+
+  return (
+    <Workspace
+      title="打卡"
+      stats={
+        owed.length === 0 ? (
+          <span className="stat is-ok">今天都打完了</span>
+        ) : (
+          <span className="stat">
+            还差 <b className="mono">{owed.length}</b> 项
+          </span>
+        )
+      }
+      modes={[
+        {
+          key: 'today', label: '今天', actTitle: '今天还差', act: pending,
+          listKey: 'records', listLabel: '记录', listTitle: <>记录 <span className="mono">{records.length}</span></>,
+          listTools: tools, list,
+        },
+        {
+          key: 'back', label: '补打卡', actTitle: '补过去的卡',
+          act: <BackfillForm rules={checkinRules} run={run} />,
+          listKey: 'records', listLabel: '记录', listTitle: <>记录 <span className="mono">{records.length}</span></>,
+          listTools: tools, list,
+        },
+      ]}
+    />
   );
 }
 
