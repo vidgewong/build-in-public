@@ -29,9 +29,6 @@ export default function Home() {
             <p className="hero-sub">
               我做不到的事，就让它有成本。下面每一条约定后面都跟着一个价格，只要你发现我没做到，第一个找我，这笔钱就是你的。
             </p>
-            <Link className="btn" to="/records">
-              去找红格子 <span className="btn-arrow" aria-hidden="true">→</span>
-            </Link>
             <p className="hero-stamp">结算于 {today.replace(/-/g, '.')}</p>
           </div>
           <SubjectCard
@@ -68,26 +65,17 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section is-alt" aria-labelledby="next-records">
-        <div className="shell split">
-          <div className="split-body">
+      <section className="section is-alt" aria-label="下一步">
+        <div className="shell pair">
+          <div className="pair-item">
             <h2 className="h2 display" id="next-records" data-reveal>
               守约记录
             </h2>
             <p className="lead" data-reveal style={{ ['--d' as string]: '100ms' }}>
               一格一天。红色的那些，是我没有记录的日子。
             </p>
-            <Link className="link" to="/records" data-reveal style={{ ['--d' as string]: '200ms' }}>
-              去找红格子 <span className="btn-arrow" aria-hidden="true">→</span>
-            </Link>
           </div>
-          <Art piece={ART.hourglass} ratio="4 / 5" />
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="next-rules">
-        <div className="shell split is-flip">
-          <div className="split-body">
+          <div className="pair-item">
             <h2 className="h2 display" id="next-rules" data-reveal>
               怎么拿到这笔钱
             </h2>
@@ -98,11 +86,10 @@ export default function Home() {
               看规则 <span className="btn-arrow" aria-hidden="true">→</span>
             </Link>
           </div>
-          <Art piece={ART.scale} ratio="4 / 3" />
         </div>
       </section>
 
-      <Strip pieces={[ART.watch, ART.sundial, ART.purse]} label="账本里的旧物" />
+      <Strip pieces={[ART.hourglass, ART.watch, ART.sundial]} label="账本里的旧物" />
     </>
   );
 }

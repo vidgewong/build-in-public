@@ -26,8 +26,6 @@ export default function Records() {
         <Art piece={ART.watch} ratio="1 / 1" />
       </header>
 
-      <Strip pieces={[ART.sundial, ART.hourglass, ART.purse]} label="账本里的旧物" />
-
       <div>
         {summaries.map((s) => (
           <RuleBlock key={s.rule.id} summary={s} currency={cur} onClaimCopy={copyClaim} />
@@ -62,6 +60,7 @@ export default function Records() {
         </section>
       )}
 
+      <Strip pieces={[ART.sundial, ART.hourglass, ART.purse]} label="账本里的旧物" />
     </>
   );
 }
