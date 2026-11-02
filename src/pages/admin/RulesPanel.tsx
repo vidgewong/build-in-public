@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { PanelProps } from './AdminApp';
 import { adminApi, type RuleInput } from '../../lib/admin-api';
+import { sortRules } from '../../lib/data';
 import { todayKey, type Rule } from '../../lib/domain';
 import { MasterDetail } from './Workspace';
 
@@ -21,10 +22,8 @@ export default function RulesPanel({ snap, run }: PanelProps) {
   /** 'new' = 新建；规则 id = 编辑；null = 没在编辑 */
   const [sel, setSel] = useState<string | null>(null);
 
-  const rules = [...snap.rules].sort((a, b) => {
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
+  const ordered = sortRules(snap.rules);
+  const rules = [...ordered.filter((r) => r.active), ...ordered.filter((r) => !r.active)];
   const current = sel && sel !== 'new' ? rules.find((r) => r.id === sel) : undefined;
 
   return (

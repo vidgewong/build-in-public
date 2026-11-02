@@ -99,11 +99,26 @@ const FALLBACK_PROFILE: Profile = {
   contact: '',
 };
 
+const CADENCE_RANK: Record<string, number> = { daily: 0, weekly: 1, monthly: 2, event: 3 };
+
+/** 按周期分组（每天→每周→每月→随时），组内保持 order；这样后加的规则也会归到自己的周期里 */
+export function sortRules<T extends { cadence: string; order?: number }>(rules: T[]): T[] {
+  return rules
+    .map((r, i) => [r, i] as const)
+    .sort(
+      ([a, ai], [b, bi]) =>
+        (CADENCE_RANK[a.cadence] ?? 9) - (CADENCE_RANK[b.cadence] ?? 9) ||
+        (a.order ?? 0) - (b.order ?? 0) ||
+        ai - bi
+    )
+    .map(([r]) => r);
+}
+
 export function buildSiteState(snapshot: Snapshot, now = new Date()): SiteState {
   const today = toDateKey(now);
   const { rules, entries, claims, calendar, claimWindowDays, currency } = snapshot;
   const profile = snapshot.profile ?? FALLBACK_PROFILE;
-  const activeRules = rules.filter((r) => r.active);
+  const activeRules = sortRules(rules.filter((r) => r.active));
 
   const summaries = activeRules
     .filter((r) => r.cadence !== 'event')
